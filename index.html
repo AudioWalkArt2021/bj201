@@ -13,6 +13,8 @@
     body { background-color: #F8FAFC; padding-bottom: 80px; }
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     .bento-card { @apply bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden; }
+    /* 讓表格第一行固定在左側，方便橫向滑動時看日期 */
+    .sticky-col { position: sticky; left: 0; z-index: 10; }
   </style>
 </head>
 <body class="text-slate-800 antialiased no-scrollbar">
@@ -22,7 +24,7 @@
   <header class="bg-white/90 backdrop-blur-md sticky top-0 z-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
     <div>
       <h1 class="text-lg font-bold text-slate-900">{{ pageTitle }}</h1>
-      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian Goat Milk CRM v7.5</p>
+      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian Goat Milk CRM v7.6</p>
     </div>
     <div v-if="loading" class="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
   </header>
@@ -77,7 +79,7 @@
   <main v-show="currentTab === 'analytics'" class="p-4 space-y-4">
     <div class="bento-card p-4 bg-slate-900 text-white flex justify-between items-center">
       <div>
-        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">結算帳期 (每月13日至隔月12日)</label>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">結算帳期</label>
         <select v-model="selectedPeriodIndex" class="bg-slate-800 text-white border-none outline-none font-bold text-sm rounded-lg p-1">
           <option v-for="(p, idx) in periods" :key="idx" :value="idx">{{ p.label }}</option>
         </select>
@@ -89,7 +91,7 @@
     </div>
 
     <div class="bento-card overflow-x-auto">
-      <div class="p-3 border-b border-slate-50 flex justify-between items-center bg-slate-50">
+      <div class="p-3 border-b border-slate-50 bg-slate-50">
         <h3 class="font-bold text-sm text-slate-700">門市請款結算表</h3>
       </div>
       <table class="w-full text-left whitespace-nowrap">
@@ -116,35 +118,86 @@
 
     <div class="bento-card p-4">
       <div class="mb-4">
-        <h3 class="font-bold text-sm text-slate-800">每週銷售節奏追蹤</h3>
+        <h3 class="font-bold text-sm text-slate-800">羊奶(大/小) 每日銷量趨勢</h3>
+        <p class="text-[10px] text-slate-400 mt-1">追蹤本期內大小瓶羊奶的實際消耗量對比</p>
       </div>
       <div class="relative h-48 w-full">
+        <canvas id="milkTrendChart"></canvas>
+      </div>
+    </div>
+
+    <div class="bento-card p-4">
+      <div class="mb-4">
+        <h3 class="font-bold text-sm text-slate-800">全品項每週銷售節奏</h3>
+      </div>
+      <div class="relative h-40 w-full">
         <canvas id="weeklyChart"></canvas>
       </div>
     </div>
   </main>
 
   <main v-show="currentTab === 'history'" class="p-4 space-y-3">
-    <div v-if="history.length === 0 && !loading" class="text-center py-20 text-slate-300">
-      <span class="text-4xl block mb-2">📄</span>
-      尚無歷史紀錄
+    
+    <div class="flex justify-between items-center mb-2">
+      <h2 class="text-sm font-bold text-slate-700">歷史出貨明細</h2>
+      <div class="bg-slate-100 p-1 rounded-xl flex gap-1">
+        <button @click="historyView = 'list'" :class="historyView === 'list' ? 'bg-white shadow text-blue-600' : 'text-slate-500'" class="px-3 py-1 text-xs font-bold rounded-lg transition-all">流水帳</button>
+        <button @click="historyView = 'table'" :class="historyView === 'table' ? 'bg-white shadow text-blue-600' : 'text-slate-500'" class="px-3 py-1 text-xs font-bold rounded-lg transition-all">表格 (Sheet)</button>
+      </div>
     </div>
-    <div v-for="record in history" :key="record.id" class="bento-card p-4">
-      <div class="flex justify-between items-start mb-2">
-        <div>
-          <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md">{{ record.date }}</span>
-          <h3 class="font-bold text-slate-800 mt-1">{{ record.location }}</h3>
+
+    <div v-if="history.length === 0 && !loading" class="text-center py-20 text-slate-300">
+      <span class="text-4xl block mb-2">📄</span>尚無歷史紀錄
+    </div>
+
+    <div v-if="historyView === 'list'" class="space-y-3">
+      <div v-for="record in history" :key="record.id" class="bento-card p-4">
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md">{{ record.date }}</span>
+            <h3 class="font-bold text-slate-800 mt-1">{{ record.location }}</h3>
+          </div>
+        </div>
+        <div class="space-y-1">
+          <div v-for="(item, idx) in record.items" :key="idx" v-show="item.inQty || item.retQty" class="flex justify-between text-[11px] py-1 border-t border-slate-50 border-dotted">
+            <span class="text-slate-500">{{ item.name }}</span>
+            <span class="font-bold text-slate-700">
+              <span v-if="item.inQty" class="text-blue-600">+{{ item.inQty }}</span>
+              <span v-if="item.retQty" class="text-rose-500 ml-2">-{{ item.retQty }}</span>
+            </span>
+          </div>
         </div>
       </div>
-      <div class="space-y-1">
-        <div v-for="(item, idx) in record.items" :key="idx" v-show="item.inQty || item.retQty" class="flex justify-between text-[11px] py-1 border-t border-slate-50 border-dotted">
-          <span class="text-slate-500">{{ item.name }}</span>
-          <span class="font-bold text-slate-700">
-            <span v-if="item.inQty" class="text-blue-600">+{{ item.inQty }}</span>
-            <span v-if="item.retQty" class="text-rose-500 ml-2">-{{ item.retQty }}</span>
-          </span>
-        </div>
-      </div>
+    </div>
+
+    <div v-if="historyView === 'table'" class="bento-card overflow-x-auto relative">
+      <table class="w-full text-left whitespace-nowrap text-xs">
+        <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+          <tr>
+            <th class="p-2 sticky-col bg-slate-50 border-r border-slate-200 min-w-[80px]">日期 / 據點</th>
+            <th v-for="p in products" :key="p.name" class="p-2 text-center border-r border-slate-200" colspan="2">{{ p.shortName }}</th>
+          </tr>
+          <tr class="text-[10px]">
+            <th class="p-1 sticky-col bg-slate-50 border-r border-slate-200 border-b border-slate-200"></th>
+            <template v-for="p in products">
+              <th class="p-1 text-center text-blue-600 border-b border-slate-200">進</th>
+              <th class="p-1 text-center text-rose-500 border-r border-slate-200 border-b border-slate-200">退</th>
+            </template>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr v-for="record in history" :key="record.id" class="hover:bg-slate-50">
+            <td class="p-2 sticky-col bg-white border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+              <div class="font-bold text-slate-700">{{ record.date.substring(5) }}</div>
+              <div class="text-[10px] text-slate-400">{{ record.location }}</div>
+            </td>
+            <template v-for="p in products">
+              <td class="p-2 text-center text-blue-600 font-bold bg-blue-50/20">{{ getHistoryQty(record, p.name, 'inQty') }}</td>
+              <td class="p-2 text-center text-rose-500 font-bold bg-rose-50/20 border-r border-slate-100">{{ getHistoryQty(record, p.name, 'retQty') }}</td>
+            </template>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </main>
 
@@ -222,13 +275,13 @@
   createApp({
     setup() {
       const currentTab = vueRef('entry');
+      const historyView = vueRef('table'); // 預設使用表格視角
       const loading = vueRef(false);
       const history = vueRef([]);
       const errorMessage = vueRef('');
       
       const locations = ['碧萃茶飲店', '火燒農會', '主辦公室', '其他留存'];
       
-      // 預設商品資料，已將售價 150 的品項批價改為 128，且包含精確的克數設定
       const defaultProducts = [
         { id: 'milk-950', name: '五寮尖羊奶(大)950cc', shortName: '大羊奶950cc', spec: '950g', cost: 128, price: 150 },
         { id: 'milk-500', name: '五寮尖羊奶(小)500cc', shortName: '小羊奶500cc', spec: '500g', cost: 85, price: 100 },
@@ -250,16 +303,11 @@
         items: products.value.map(p => ({ name: p.name, inQty: '', retQty: '' }))
       });
 
-      // 確保出貨單表單品項會跟隨商品設定同步
       watch(products, (newProducts) => {
         if(currentTab.value === 'products') {
             slipForm.value.items = newProducts.map(p => {
                 const existing = slipForm.value.items.find(i => i.name === p.name);
-                return { 
-                    name: p.name, 
-                    inQty: existing ? existing.inQty : '', 
-                    retQty: existing ? existing.retQty : '' 
-                };
+                return { name: p.name, inQty: existing ? existing.inQty : '', retQty: existing ? existing.retQty : '' };
             });
         }
       }, { deep: true });
@@ -276,11 +324,9 @@
           let prevMonth = month - 1;
           let prevYear = year;
           if (prevMonth === 0) { prevMonth = 12; prevYear -= 1; }
-          
           let startStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-13`;
           let endStr = `${year}-${String(month).padStart(2, '0')}-12`;
           periodList.push({ label: `${prevMonth}/13 - ${month}/12 期`, start: startStr, end: endStr });
-          
           month--;
           if (month === 0) { month = 12; year -= 1; }
         }
@@ -289,29 +335,45 @@
 
       const periods = vueRef(generatePeriods());
       const selectedPeriodIndex = vueRef(0);
-      let chartInstance = null;
+      let barChartInstance = null;
+      let lineChartInstance = null;
 
       const currentPeriodData = computed(() => {
         const p = periods.value[selectedPeriodIndex.value];
-        return history.value.filter(r => r.date >= p.start && r.date <= p.end);
+        // 過濾區間內資料，並由舊到新排序供折線圖使用
+        return history.value.filter(r => r.date >= p.start && r.date <= p.end).sort((a, b) => a.date.localeCompare(b.date));
       });
 
-      // 動態讀取最新的 products.value 內的成本來結算
+      // 核心修復：統一舊名稱與新名稱的判定
+      const getNormalizedName = (rawName) => {
+        const aliasMap = {
+          '手擠 山羊奶 (950g-大瓶)': '五寮尖羊奶(大)950cc',
+          '手擠 山羊奶 (500g-中瓶)': '五寮尖羊奶(小)500cc'
+        };
+        // 嘗試去空白再比對，避免手寫輸入時多加了空白
+        return aliasMap[rawName.trim()] || rawName;
+      };
+
+      // 歷史表格專用：抓取特定品項數值 (自動判定別名)
+      const getHistoryQty = (record, targetName, type) => {
+        const item = record.items.find(i => getNormalizedName(i.name) === getNormalizedName(targetName));
+        return item && item[type] ? item[type] : '-';
+      };
+
       const currentPeriodStats = computed(() => {
         const map = {};
-        // 使用目前的商品設定建立基底
         products.value.forEach(p => map[p.name] = { in: 0, ret: 0, cost: p.cost, shortName: p.shortName });
 
         currentPeriodData.value.forEach(record => {
           record.items.forEach(item => {
-            if(map[item.name]) {
-              map[item.name].in += (Number(item.inQty) || 0);
-              map[item.name].ret += (Number(item.retQty) || 0);
+            const normalizedName = getNormalizedName(item.name);
+            if(map[normalizedName]) {
+              map[normalizedName].in += (Number(item.inQty) || 0);
+              map[normalizedName].ret += (Number(item.retQty) || 0);
             }
           });
         });
 
-        // 完整回傳所有品項 (不再過濾 0 銷量)
         return products.value.map(p => {
           const stats = map[p.name];
           const sales = stats.in - stats.ret;
@@ -330,9 +392,10 @@
         return currentPeriodStats.value.reduce((sum, stat) => sum + stat.totalCost, 0);
       });
 
-      const updateChart = () => {
+      const updateCharts = () => {
         if (currentTab.value !== 'analytics') return;
         
+        // --- 1. 每週節奏柱狀圖 (Bar Chart) ---
         const daysData = [0, 0, 0, 0, 0, 0, 0];
         currentPeriodData.value.forEach(record => {
           const d = new Date(record.date);
@@ -344,75 +407,100 @@
           daysData[dayOfWeek] += netForDay;
         });
 
-        const chartData = [...daysData.slice(1), daysData[0]];
-        const labels = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
-
+        const barData = [...daysData.slice(1), daysData[0]];
+        
         nextTick(() => {
-          const ctx = document.getElementById('weeklyChart');
-          if (!ctx) return;
-
-          if (chartInstance) {
-            chartInstance.data.datasets[0].data = chartData;
-            chartInstance.update();
-          } else {
-            chartInstance = new Chart(ctx, {
-              type: 'bar',
-              data: {
-                labels: labels,
-                datasets: [{
-                  label: '淨消耗量',
-                  data: chartData,
-                  backgroundColor: '#3B82F6',
-                  borderRadius: 6,
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                  y: { beginAtZero: true, grid: { display: false } },
-                  x: { grid: { display: false } }
+          const barCtx = document.getElementById('weeklyChart');
+          if (barCtx) {
+            if (barChartInstance) {
+              barChartInstance.data.datasets[0].data = barData;
+              barChartInstance.update();
+            } else {
+              barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                  labels: ['週一', '週二', '週三', '週四', '週五', '週六', '週日'],
+                  datasets: [{ label: '淨消耗量', data: barData, backgroundColor: '#94A3B8', borderRadius: 4 }]
                 },
-                plugins: { legend: { display: false } }
-              }
-            });
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+              });
+            }
+          }
+
+          // --- 2. 大小羊奶每日趨勢折線圖 (Line Chart) ---
+          const dateMap = {}; // 收集這段期間內出現過的所有日期
+          currentPeriodData.value.forEach(r => {
+             if(!dateMap[r.date]) dateMap[r.date] = { large: 0, small: 0 };
+             r.items.forEach(item => {
+                 const name = getNormalizedName(item.name);
+                 const net = (Number(item.inQty) || 0) - (Number(item.retQty) || 0);
+                 if (name.includes('大)950cc')) dateMap[r.date].large += net;
+                 if (name.includes('小)500cc')) dateMap[r.date].small += net;
+             });
+          });
+
+          const sortedDates = Object.keys(dateMap).sort();
+          const labelsLine = sortedDates.map(d => d.substring(5)); // 只取 MM-DD
+          const dataLarge = sortedDates.map(d => dateMap[d].large);
+          const dataSmall = sortedDates.map(d => dateMap[d].small);
+
+          const lineCtx = document.getElementById('milkTrendChart');
+          if (lineCtx) {
+            if (lineChartInstance) {
+              lineChartInstance.data.labels = labelsLine;
+              lineChartInstance.data.datasets[0].data = dataLarge;
+              lineChartInstance.data.datasets[1].data = dataSmall;
+              lineChartInstance.update();
+            } else {
+              lineChartInstance = new Chart(lineCtx, {
+                type: 'line',
+                data: {
+                  labels: labelsLine,
+                  datasets: [
+                    { label: '大羊奶(950cc)', data: dataLarge, borderColor: '#3B82F6', backgroundColor: '#3B82F6', tension: 0.3, borderWidth: 3 },
+                    { label: '小羊奶(500cc)', data: dataSmall, borderColor: '#10B981', backgroundColor: '#10B981', tension: 0.3, borderWidth: 3 }
+                  ]
+                },
+                options: {
+                  responsive: true, maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
+                  plugins: { legend: { position: 'top', labels: { boxWidth: 12, usePointStyle: true, font: {size: 10} } } },
+                  scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
+                }
+              });
+            }
           }
         });
       };
 
       const switchTab = (tab) => {
         currentTab.value = tab;
-        if (tab === 'analytics') {
-          setTimeout(updateChart, 100);
-        }
+        if (tab === 'analytics') setTimeout(updateCharts, 100);
       };
 
       watch([selectedPeriodIndex, currentPeriodData], () => {
-        updateChart();
+        updateCharts();
       }, { deep: true });
 
       onMounted(() => {
         loading.value = true;
-        
-        // 讀取設定檔的商品資料
         const productsDbRef = ref(db, 'settings/products');
         onValue(productsDbRef, (snapshot) => {
           if (snapshot.exists()) {
             products.value = snapshot.val();
-            // 同步更新表單基底
             if(slipForm.value.items.length === 0) {
               slipForm.value.items = products.value.map(p => ({ name: p.name, inQty: '', retQty: '' }));
             }
           }
         });
 
-        // 讀取歷史出貨單
         const dbRef = ref(db, 'delivery_slips');
         onValue(dbRef, (snapshot) => {
           errorMessage.value = '';
           const data = snapshot.val();
           if (data) {
             const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+            // 歷史紀錄介面保持由新到舊排列
             history.value = list.sort((a, b) => b.date.localeCompare(a.date));
           }
           loading.value = false;
@@ -459,9 +547,9 @@
       };
 
       return {
-        currentTab, pageTitle, loading, errorMessage, locations, slipForm, history,
+        currentTab, historyView, pageTitle, loading, errorMessage, locations, slipForm, history,
         periods, selectedPeriodIndex, currentPeriodStats, currentPeriodTotalCost, products,
-        submitSlip, switchTab, saveProductSettings
+        submitSlip, switchTab, saveProductSettings, getHistoryQty
       };
     }
   }).mount('#app');
