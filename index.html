@@ -6,12 +6,13 @@
   <title>五寮尖山羊乳 - 營運管理系統</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { background-color: #F8FAFC; padding-bottom: 80px; }
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-    .bento-card { @apply bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden; }
+    .bento-card { @apply bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden; }
   </style>
 </head>
 <body class="text-slate-800 antialiased no-scrollbar">
@@ -21,7 +22,7 @@
   <header class="bg-white/90 backdrop-blur-md sticky top-0 z-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
     <div>
       <h1 class="text-lg font-bold text-slate-900">{{ pageTitle }}</h1>
-      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian Goat Milk CRM v7.3</p>
+      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian Goat Milk CRM v7.4</p>
     </div>
     <div v-if="loading" class="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
   </header>
@@ -73,39 +74,57 @@
     </div>
   </main>
 
-  <main v-show="currentTab === 'inventory'" class="p-4 space-y-4">
-    <div class="grid grid-cols-2 gap-3">
-      <div class="bento-card p-4 bg-blue-600 text-white">
-        <p class="text-[10px] font-bold opacity-80 uppercase">總配送量</p>
-        <p class="text-2xl font-black mt-1">{{ totalStats.allIn }}</p>
+  <main v-show="currentTab === 'analytics'" class="p-4 space-y-4">
+    
+    <div class="bento-card p-4 bg-slate-900 text-white flex justify-between items-center">
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">結算帳期 (每月13日至隔月12日)</label>
+        <select v-model="selectedPeriodIndex" class="bg-slate-800 text-white border-none outline-none font-bold text-sm rounded-lg p-1">
+          <option v-for="(p, idx) in periods" :key="idx" :value="idx">{{ p.label }}</option>
+        </select>
       </div>
-      <div class="bento-card p-4 bg-rose-500 text-white">
-        <p class="text-[10px] font-bold opacity-80 uppercase">總退回量</p>
-        <p class="text-2xl font-black mt-1">{{ totalStats.allRet }}</p>
+      <div class="text-right">
+        <p class="text-[10px] text-slate-400">本期成本總計</p>
+        <p class="text-xl font-black text-blue-400">${{ currentPeriodTotalCost.toLocaleString() }}</p>
       </div>
     </div>
 
-    <div class="bento-card">
-      <div class="p-4 border-b border-slate-50 flex justify-between items-center">
-        <h3 class="font-bold text-sm">各品項轉化分析</h3>
-        <span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">即時結算</span>
+    <div class="bento-card overflow-x-auto">
+      <div class="p-3 border-b border-slate-50 flex justify-between items-center bg-slate-50">
+        <h3 class="font-bold text-sm text-slate-700">門市請款結算表</h3>
       </div>
-      <div class="divide-y divide-slate-50">
-        <div v-for="stat in inventoryStats" :key="stat.name" class="p-4 flex items-center justify-between">
-          <div class="flex-1">
-            <h4 class="text-xs font-bold text-slate-800">{{ stat.name }}</h4>
-            <div class="flex gap-3 mt-1">
-              <span class="text-[10px] text-slate-400">累計進: {{ stat.in }}</span>
-              <span class="text-[10px] text-rose-400">累計退: {{ stat.ret }}</span>
-            </div>
-          </div>
-          <div class="text-right">
-            <p class="text-xs font-bold text-slate-400">淨轉化量</p>
-            <p class="text-lg font-black text-blue-600">{{ stat.net }}</p>
-          </div>
-        </div>
+      <table class="w-full text-left whitespace-nowrap">
+        <thead class="bg-white text-slate-400 text-[10px] font-bold border-b border-slate-100">
+          <tr>
+            <th class="p-3">品名</th>
+            <th class="p-3 text-center">期間進貨</th>
+            <th class="p-3 text-center">結算銷量</th>
+            <th class="p-3 text-right">成本</th>
+            <th class="p-3 text-right">合計</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-50 text-xs">
+          <tr v-for="stat in currentPeriodStats" :key="stat.name" class="hover:bg-slate-50">
+            <td class="p-3 font-bold text-slate-700 truncate max-w-[120px]">{{ stat.shortName }}</td>
+            <td class="p-3 text-center text-blue-600 font-semibold">{{ stat.in }}</td>
+            <td class="p-3 text-center text-green-600 font-black">{{ stat.sales }}</td>
+            <td class="p-3 text-right text-slate-500">{{ stat.cost }}</td>
+            <td class="p-3 text-right font-bold text-slate-800">${{ stat.totalCost.toLocaleString() }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bento-card p-4">
+      <div class="mb-4">
+        <h3 class="font-bold text-sm text-slate-800">每週銷售節奏追蹤</h3>
+        <p class="text-[10px] text-slate-400 mt-1">觀察各星期的總淨消耗量，協助優化進貨與配送排程。</p>
+      </div>
+      <div class="relative h-48 w-full">
+        <canvas id="weeklyChart"></canvas>
       </div>
     </div>
+
   </main>
 
   <main v-show="currentTab === 'history'" class="p-4 space-y-3">
@@ -137,9 +156,9 @@
       <span class="text-2xl">✍️</span>
       <span class="text-[10px] font-bold">填寫</span>
     </button>
-    <button @click="currentTab = 'inventory'" :class="currentTab === 'inventory' ? 'text-blue-600' : 'text-slate-300'" class="flex flex-col items-center gap-1 transition-colors">
+    <button @click="switchTab('analytics')" :class="currentTab === 'analytics' ? 'text-blue-600' : 'text-slate-300'" class="flex flex-col items-center gap-1 transition-colors">
       <span class="text-2xl">📊</span>
-      <span class="text-[10px] font-bold">庫存</span>
+      <span class="text-[10px] font-bold">對帳分析</span>
     </button>
     <button @click="currentTab = 'history'" :class="currentTab === 'history' ? 'text-blue-600' : 'text-slate-300'" class="flex flex-col items-center gap-1 transition-colors">
       <span class="text-2xl">📜</span>
@@ -166,70 +185,176 @@
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  const { createApp, ref: vueRef, computed, onMounted } = Vue;
+  const { createApp, ref: vueRef, computed, onMounted, watch, nextTick } = Vue;
 
   createApp({
     setup() {
       const currentTab = vueRef('entry');
       const loading = vueRef(false);
       const history = vueRef([]);
-      const errorMessage = vueRef(''); // 新增錯誤訊息狀態
+      const errorMessage = vueRef('');
       const locations = ['碧萃茶飲店', '主辦公室', '火燒農會', '其他留存'];
-      const productNames = [
-        '手擠 山羊奶 (950g-大瓶)', 
-        '手擠 山羊奶 (500g-中瓶)', 
-        '羊奶小饅頭 (8入-黑糖)', 
-        '羊奶小饅頭 (8入-原味)', 
-        '桂圓核桃黑糖羊奶饅頭 (4入)'
+      
+      // 更新基礎定價以符合會計請款截圖資料
+      const products = [
+        { name: '五寮尖羊奶(大)950cc', shortName: '大羊奶950cc', cost: 128 },
+        { name: '五寮尖羊奶(小)500cc', shortName: '小羊奶500cc', cost: 85 },
+        { name: '五寮尖山羊乳-黑糖小羊奶饅頭', shortName: '黑糖小饅頭', cost: 85 },
+        { name: '羊奶小饅頭 (8入-原味)', shortName: '原味小饅頭', cost: 85 },
+        { name: '桂圓核桃黑糖羊奶饅頭 (4入)', shortName: '桂圓核桃饅頭', cost: 128 }
       ];
 
       const pageTitle = computed(() => {
-        const titles = { entry: '出貨作業', inventory: '庫存與銷量分析', history: '歷史配送紀錄' };
+        const titles = { entry: '出貨作業', analytics: '結算與物流分析', history: '歷史配送紀錄' };
         return titles[currentTab.value];
       });
 
       const slipForm = vueRef({
         date: new Date().toISOString().split('T')[0],
         location: '碧萃茶飲店',
-        items: productNames.map(name => ({ name, inQty: '', retQty: '' }))
+        items: products.map(p => ({ name: p.name, inQty: '', retQty: '' }))
       });
 
-      // 修復此處的語法錯誤
-      const inventoryStats = computed(() => {
-        const map = {};
-        productNames.forEach(name => map[name] = { in: 0, ret: 0 });
+      // 產生每月 13日 至次月 12日 的帳期列表
+      const generatePeriods = () => {
+        const periodList = [];
+        let d = new Date();
+        let year = d.getFullYear();
+        let month = d.getMonth() + 1;
+        // 如果今天是 12 號以前，算在上一個帳期
+        if (d.getDate() <= 12) { month -= 1; }
+        if (month === 0) { month = 12; year -= 1; }
 
-        history.value.forEach(record => {
-          if (record.items) {
-            record.items.forEach(item => {
-              if(map[item.name]) {
-                map[item.name].in += (Number(item.inQty) || 0);
-                map[item.name].ret += (Number(item.retQty) || 0);
+        for(let i=0; i<6; i++) {
+          let prevMonth = month - 1;
+          let prevYear = year;
+          if (prevMonth === 0) { prevMonth = 12; prevYear -= 1; }
+          
+          let startStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-13`;
+          let endStr = `${year}-${String(month).padStart(2, '0')}-12`;
+          periodList.push({ label: `${prevMonth}/13 - ${month}/12 期`, start: startStr, end: endStr });
+          
+          month--;
+          if (month === 0) { month = 12; year -= 1; }
+        }
+        return periodList;
+      };
+
+      const periods = vueRef(generatePeriods());
+      const selectedPeriodIndex = vueRef(0); // 預設最新一期
+      let chartInstance = null;
+
+      // 篩選出當前所選帳期的所有紀錄
+      const currentPeriodData = computed(() => {
+        const p = periods.value[selectedPeriodIndex.value];
+        return history.value.filter(r => r.date >= p.start && r.date <= p.end);
+      });
+
+      // 會計對帳表邏輯：期間進貨 - 期間退貨 = 結算銷量 (等同於進銷公式)
+      const currentPeriodStats = computed(() => {
+        const map = {};
+        products.forEach(p => map[p.name] = { in: 0, ret: 0, cost: p.cost, shortName: p.shortName });
+
+        currentPeriodData.value.forEach(record => {
+          record.items.forEach(item => {
+            if(map[item.name]) {
+              map[item.name].in += (Number(item.inQty) || 0);
+              map[item.name].ret += (Number(item.retQty) || 0);
+            }
+          });
+        });
+
+        return products.map(p => {
+          const stats = map[p.name];
+          const sales = stats.in - stats.ret; // 結算銷量 = 總進貨扣除退庫存
+          return {
+            name: p.name,
+            shortName: p.shortName,
+            in: stats.in,
+            sales: sales,
+            cost: stats.cost,
+            totalCost: sales * stats.cost
+          };
+        }).filter(s => s.in > 0 || s.sales > 0); // 只顯示本期有異動的商品
+      });
+
+      const currentPeriodTotalCost = computed(() => {
+        return currentPeriodStats.value.reduce((sum, stat) => sum + stat.totalCost, 0);
+      });
+
+      // 繪製或更新物流分析圖表
+      const updateChart = () => {
+        if (currentTab.value !== 'analytics') return;
+        
+        // 統計週一到週日的總淨銷量
+        const daysData = [0, 0, 0, 0, 0, 0, 0]; // 週日, 週一 ... 週六
+        currentPeriodData.value.forEach(record => {
+          const d = new Date(record.date);
+          const dayOfWeek = d.getDay();
+          let netForDay = 0;
+          record.items.forEach(item => {
+            netForDay += (Number(item.inQty) || 0) - (Number(item.retQty) || 0);
+          });
+          daysData[dayOfWeek] += netForDay;
+        });
+
+        // 將週日移到陣列最後，讓圖表顯示 週一 至 週日
+        const chartData = [...daysData.slice(1), daysData[0]];
+        const labels = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
+
+        nextTick(() => {
+          const ctx = document.getElementById('weeklyChart');
+          if (!ctx) return;
+
+          if (chartInstance) {
+            chartInstance.data.datasets[0].data = chartData;
+            chartInstance.update();
+          } else {
+            chartInstance = new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: '淨消耗量 (進貨-退貨)',
+                  data: chartData,
+                  backgroundColor: '#3B82F6',
+                  borderRadius: 6,
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  y: { beginAtZero: true, grid: { display: false } },
+                  x: { grid: { display: false } }
+                },
+                plugins: {
+                  legend: { display: false }
+                }
               }
             });
           }
         });
+      };
 
-        return productNames.map(name => ({
-          name,
-          in: map[name].in,
-          ret: map[name].ret,
-          net: map[name].in - map[name].ret
-        }));
-      });
+      const switchTab = (tab) => {
+        currentTab.value = tab;
+        if (tab === 'analytics') {
+          setTimeout(updateChart, 100);
+        }
+      };
 
-      const totalStats = computed(() => {
-        let allIn = 0, allRet = 0;
-        inventoryStats.value.forEach(s => { allIn += s.in; allRet += s.ret; });
-        return { allIn, allRet };
-      });
+      // 當切換帳期或有新資料寫入時，重新繪製圖表
+      watch([selectedPeriodIndex, currentPeriodData], () => {
+        updateChart();
+      }, { deep: true });
 
       onMounted(() => {
         loading.value = true;
         const dbRef = ref(db, 'delivery_slips');
         
         onValue(dbRef, (snapshot) => {
-          errorMessage.value = ''; // 成功讀取則清空錯誤
+          errorMessage.value = '';
           const data = snapshot.val();
           if (data) {
             const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
@@ -237,13 +362,7 @@
           }
           loading.value = false;
         }, (error) => {
-          // 捕捉 Firebase 權限被拒絕等錯誤
-          console.error("Firebase 讀取失敗:", error);
-          if(error.message.includes('Permission denied')) {
-             errorMessage.value = '讀取失敗：Firebase 資料庫權限未開放，請至後台修改 Rules。';
-          } else {
-             errorMessage.value = '資料庫連線異常：' + error.message;
-          }
+          errorMessage.value = '資料庫連線異常：' + error.message;
           loading.value = false;
         });
       });
@@ -262,15 +381,10 @@
             items: slipForm.value.items,
             timestamp: Date.now()
           });
-          alert('紀錄已成功儲存至 Firebase！');
+          alert('紀錄已成功儲存！');
           slipForm.value.items.forEach(i => { i.inQty = ''; i.retQty = ''; });
         } catch (error) {
-          console.error("Firebase 寫入失敗:", error);
-          if(error.message.includes('Permission denied')) {
-             errorMessage.value = '寫入失敗：Firebase 資料庫權限未開放。';
-          } else {
-             errorMessage.value = '儲存失敗，請檢查網路連線。';
-          }
+          errorMessage.value = '儲存失敗，請檢查權限或網路連線。';
         } finally {
           loading.value = false;
         }
@@ -278,7 +392,8 @@
 
       return {
         currentTab, pageTitle, loading, errorMessage, locations, slipForm, history,
-        inventoryStats, totalStats, submitSlip
+        periods, selectedPeriodIndex, currentPeriodStats, currentPeriodTotalCost,
+        submitSlip, switchTab
       };
     }
   }).mount('#app');
