@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>五寮尖山羊乳 - 行動進銷存</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    body { background-color: #F3F4F6; }
+    /* 移除數字輸入框的上下箭頭，讓手機畫面更乾淨 */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  </style>
+</head>
+<body class="text-gray-800 antialiased no-scrollbar pb-20">
+
+<div id="app" class="max-w-md mx-auto min-h-screen relative shadow-lg bg-white">
+  
+  <header class="bg-white/90 backdrop-blur-md sticky top-0 z-50 px-5 py-4 border-b border-gray-100 flex justify-between items-center">
+    <h1 class="text-xl font-bold text-gray-800">{{ pageTitle }}</h1>
+    <span class="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded-md">v7.1</span>
+  </header>
+
+  <main v-show="currentTab === 'products'" class="p-4 space-y-4">
+    <div class="grid grid-cols-1 gap-3">
+      <div v-for="item in products" :key="item.name" class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
+        <div>
+          <h3 class="font-bold text-sm">{{ item.name }}</h3>
+          <p class="text-xs text-gray-500 mt-1">進貨價: ${{ item.wholesale }} | 售價: ${{ item.price }}</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <main v-show="currentTab === 'inventory'" class="p-3">
+    <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
+      
+      <div class="flex gap-3 mb-4">
+        <div class="flex-1">
+          <label class="text-xs text-gray-500 ml-1 font-bold">日期</label>
+          <input v-model="slipForm.date" type="date" class="w-full mt-1 p-2.5 rounded-xl border border-gray-200 outline-none text-sm bg-gray-50">
+        </div>
+        <div class="flex-1">
+          <label class="text-xs text-gray-500 ml-1 font-bold">配送據點</label>
+          <select v-model="slipForm.location" class="w-full mt-1 p-2.5 rounded-xl border border-gray-200 outline-none text-sm bg-gray-50 font-bold text-blue-700">
+            <option value="碧萃茶飲店">碧萃茶飲店</option>
+            <option value="主辦公室">主辦公室</option>
+            <option value="火燒農會">火燒農會</option>
+            <option value="其他留存">其他留存</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="border border-gray-200 rounded-xl overflow-hidden">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-gray-100 text-gray-600 text-xs">
+            <tr>
+              <th class="p-2.5 font-bold">品名</th>
+              <th class="p-2.5 w-14 text-center font-bold">進貨<br><span class="text-[9px] font-normal">(+)</span></th>
+              <th class="p-2.5 w-14 text-center font-bold">換貨<br><span class="text-[9px] font-normal">(不增減)</span></th>
+              <th class="p-2.5 w-14 text-center font-bold">過期<br><span class="text-[9px] font-normal">(-)</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="(item, index) in slipForm.items" :key="index" class="bg-white">
+              <td class="p-2 text-xs font-bold text-gray-800 leading-tight w-1/2">
+                {{ item.name }}
+              </td>
+              <td class="p-1.5">
+                <input v-model.number="item.inQty" type="number" placeholder="-" class="w-full p-2 text-center border border-blue-200 rounded-lg bg-blue-50/50 text-blue-700 font-bold focus:ring-2 focus:ring-blue-400 outline-none">
+              </td>
+              <td class="p-1.5">
+                <input v-model.number="item.exQty" type="number" placeholder="-" class="w-full p-2 text-center border border-gray-200 rounded-lg bg-gray-50 text-gray-700 font-bold focus:ring-2 focus:ring-gray-400 outline-none">
+              </td>
+              <td class="p-1.5">
+                <input v-model.number="item.retQty" type="number" placeholder="-" class="w-full p-2 text-center border border-red-200 rounded-lg bg-red-50/50 text-red-700 font-bold focus:ring-2 focus:ring-red-400 outline-none">
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <textarea v-model="slipForm.memo" placeholder="備註事項..." class="w-full p-3 rounded-xl border border-gray-200 outline-none text-sm bg-gray-50 resize-none h-20"></textarea>
+        
+        <button @click="submitSlip" class="w-full bg-black text-white font-bold py-4 rounded-xl mt-2 active:scale-95 transition-transform flex justify-center items-center gap-2">
+          <span>送出出貨單</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <main v-show="currentTab === 'calendar'" class="p-4">
+    <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+      <div class="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center">
+        <button class="font-bold text-xl">&lt;</button>
+        <h2 class="font-bold text-lg">2026年 4月</h2>
+        <button class="font-bold text-xl">&gt;</button>
+      </div>
+      <div class="grid grid-cols-7 gap-px bg-gray-200 text-center text-xs">
+        <div v-for="day in ['日','一','二','三','四','五','六']" class="bg-white py-2 font-bold text-gray-500">{{ day }}</div>
+        <div v-for="n in 30" :key="n" class="bg-white min-h-[60px] p-1 flex flex-col items-center justify-start">
+          <span class="font-medium text-gray-700" :class="{'bg-black text-white w-6 h-6 rounded-full flex items-center justify-center': n === 19}">{{ n }}</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <nav class="fixed bottom-0 w-full max-w-md bg-white/90 backdrop-blur-md border-t border-gray-200 pb-safe z-50">
+    <div class="flex justify-around items-center h-16">
+      <button @click="currentTab = 'products'" :class="currentTab === 'products' ? 'text-black' : 'text-gray-400'" class="flex flex-col items-center w-full">
+        <span class="text-2xl mb-1">📦</span>
+        <span class="text-[10px] font-bold">商品明細</span>
+      </button>
+      <button @click="currentTab = 'inventory'" :class="currentTab === 'inventory' ? 'text-blue-700' : 'text-gray-400'" class="flex flex-col items-center w-full">
+        <span class="text-2xl mb-1">📝</span>
+        <span class="text-[10px] font-bold">整單登錄</span>
+      </button>
+      <button @click="currentTab = 'calendar'" :class="currentTab === 'calendar' ? 'text-black' : 'text-gray-400'" class="flex flex-col items-center w-full">
+        <span class="text-2xl mb-1">📅</span>
+        <span class="text-[10px] font-bold">歷史紀錄</span>
+      </button>
+    </div>
+  </nav>
+
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBVc4MZ4DOPiit0VGVSYP0x7wICbjAbW-o",
+    authDomain: "crm-0419.firebaseapp.com",
+    databaseURL: "https://crm-0419-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "crm-0419",
+    storageBucket: "crm-0419.firebasestorage.app",
+    messagingSenderId: "498011500976",
+    appId: "1:498011500976:web:e3d522376c53e0d41d2675"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const { createApp, ref: vueRef, computed } = Vue;
+
+  createApp({
+    setup() {
+      const currentTab = vueRef('inventory');
+      
+      const pageTitle = computed(() => {
+        if(currentTab.value === 'products') return '商品與定價';
+        if(currentTab.value === 'inventory') return '出貨單登錄';
+        return '進出貨紀錄';
+      });
+
+      // 基礎商品清單 (依照實體單據建檔)
+      const products = [
+        { name: '手擠 山羊奶 (950g-大瓶)', wholesale: 128, price: 150 },
+        { name: '手擠 山羊奶 (500g-中瓶)', wholesale: 85, price: 100 },
+        { name: '羊奶小饅頭 (8入-黑糖)', wholesale: 85, price: 100 },
+        { name: '羊奶小饅頭 (8入-原味)', wholesale: 85, price: 100 },
+        { name: '桂圓核桃黑糖羊奶饅頭 (4入)', wholesale: 127, price: 150 }
+      ];
+
+      // 初始化表單資料格式
+      const generateEmptySlip = () => {
+        return {
+          date: new Date().toISOString().split('T')[0],
+          location: '碧萃茶飲店',
+          memo: '',
+          items: products.map(p => ({
+            name: p.name,
+            wholesale: p.wholesale,
+            price: p.price,
+            inQty: '',
+            exQty: '',
+            retQty: ''
+          }))
+        };
+      };
+
+      const slipForm = vueRef(generateEmptySlip());
+
+      // 整張出貨單送出邏輯
+      const submitSlip = async () => {
+        // 過濾出有填寫數量的品項，避免傳送空資料
+        const activeItems = slipForm.value.items.filter(
+          item => item.inQty !== '' || item.exQty !== '' || item.retQty !== ''
+        );
+
+        if (activeItems.length === 0) {
+          return alert('請至少填寫一項商品的異動數量！');
+        }
+
+        try {
+          const txRef = ref(db, 'delivery_slips');
+          const payload = {
+            date: slipForm.value.date,
+            location: slipForm.value.location,
+            memo: slipForm.value.memo,
+            items: activeItems,
+            timestamp: Date.now()
+          };
+
+          await push(txRef, payload);
+          alert('出貨單已成功建檔！');
+          
+          // 送出後清空表單數量，但保留日期與據點方便連續輸入
+          slipForm.value.memo = '';
+          slipForm.value.items.forEach(item => {
+            item.inQty = '';
+            item.exQty = '';
+            item.retQty = '';
+          });
+
+        } catch (error) {
+          console.error("Firebase 寫入錯誤:", error);
+          alert('資料傳送失敗，請檢查網路連線');
+        }
+      };
+
+      return {
+        currentTab,
+        pageTitle,
+        products,
+        slipForm,
+        submitSlip
+      }
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>
