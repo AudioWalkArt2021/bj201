@@ -21,10 +21,14 @@
   <header class="bg-white/90 backdrop-blur-md sticky top-0 z-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
     <div>
       <h1 class="text-lg font-bold text-slate-900">{{ pageTitle }}</h1>
-      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian Goat Milk CRM v7.2</p>
+      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian Goat Milk CRM v7.3</p>
     </div>
     <div v-if="loading" class="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
   </header>
+
+  <div v-if="errorMessage" class="bg-red-500 text-white text-xs font-bold p-3 text-center mx-4 mt-4 rounded-xl shadow-md">
+    ⚠️ {{ errorMessage }}
+  </div>
 
   <main v-show="currentTab === 'entry'" class="p-4 space-y-4">
     <div class="bento-card p-5">
@@ -36,7 +40,7 @@
         <div class="flex-1">
           <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">配送據點</label>
           <select v-model="slipForm.location" class="w-full mt-1 p-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 text-sm font-bold text-blue-600">
-            <option v-for="loc in locations" :value="loc">{{ loc }}</option>
+            <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
           </select>
         </div>
       </div>
@@ -101,14 +105,11 @@
           </div>
         </div>
       </div>
-      <div class="p-4 bg-slate-50 text-[11px] text-slate-500 italic">
-        * 淨轉化量 = 總進貨 - 總退回量，代表實際消耗/銷售量。
-      </div>
     </div>
   </main>
 
   <main v-show="currentTab === 'history'" class="p-4 space-y-3">
-    <div v-if="history.length === 0" class="text-center py-20 text-slate-300">
+    <div v-if="history.length === 0 && !loading" class="text-center py-20 text-slate-300">
       <span class="text-4xl block mb-2">📄</span>
       尚無歷史紀錄
     </div>
@@ -118,12 +119,9 @@
           <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md">{{ record.date }}</span>
           <h3 class="font-bold text-slate-800 mt-1">{{ record.location }}</h3>
         </div>
-        <div class="text-right">
-          <span class="text-xs font-bold text-slate-600">單據明細</span>
-        </div>
       </div>
       <div class="space-y-1">
-        <div v-for="item in record.items" v-show="item.inQty || item.retQty" class="flex justify-between text-[11px] py-1 border-t border-slate-50 border-dotted">
+        <div v-for="(item, idx) in record.items" :key="idx" v-show="item.inQty || item.retQty" class="flex justify-between text-[11px] py-1 border-t border-slate-50 border-dotted">
           <span class="text-slate-500">{{ item.name }}</span>
           <span class="font-bold text-slate-700">
             <span v-if="item.inQty" class="text-blue-600">+{{ item.inQty }}</span>
@@ -175,6 +173,7 @@
       const currentTab = vueRef('entry');
       const loading = vueRef(false);
       const history = vueRef([]);
+      const errorMessage = vueRef(''); // 新增錯誤訊息狀態
       const locations = ['碧萃茶飲店', '主辦公室', '火燒農會', '其他留存'];
       const productNames = [
         '手擠 山羊奶 (950g-大瓶)', 
@@ -195,19 +194,20 @@
         items: productNames.map(name => ({ name, inQty: '', retQty: '' }))
       });
 
-      // 核心庫存邏輯：從歷史紀錄中即時計算
+      // 修復此處的語法錯誤
       const inventoryStats = computed(() => {
-        const stats = productNames.map(name => ({ name, in, ret, net: 0 }));
         const map = {};
         productNames.forEach(name => map[name] = { in: 0, ret: 0 });
 
         history.value.forEach(record => {
-          record.items.forEach(item => {
-            if(map[item.name]) {
-              map[item.name].in += (Number(item.inQty) || 0);
-              map[item.name].ret += (Number(item.retQty) || 0);
-            }
-          });
+          if (record.items) {
+            record.items.forEach(item => {
+              if(map[item.name]) {
+                map[item.name].in += (Number(item.inQty) || 0);
+                map[item.name].ret += (Number(item.retQty) || 0);
+              }
+            });
+          }
         });
 
         return productNames.map(name => ({
@@ -224,16 +224,25 @@
         return { allIn, allRet };
       });
 
-      // 即時同步 Firebase 資料
       onMounted(() => {
         loading.value = true;
         const dbRef = ref(db, 'delivery_slips');
+        
         onValue(dbRef, (snapshot) => {
+          errorMessage.value = ''; // 成功讀取則清空錯誤
           const data = snapshot.val();
           if (data) {
-            // 將物件轉為陣列並按日期排序（新的在前）
             const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
             history.value = list.sort((a, b) => b.date.localeCompare(a.date));
+          }
+          loading.value = false;
+        }, (error) => {
+          // 捕捉 Firebase 權限被拒絕等錯誤
+          console.error("Firebase 讀取失敗:", error);
+          if(error.message.includes('Permission denied')) {
+             errorMessage.value = '讀取失敗：Firebase 資料庫權限未開放，請至後台修改 Rules。';
+          } else {
+             errorMessage.value = '資料庫連線異常：' + error.message;
           }
           loading.value = false;
         });
@@ -241,26 +250,34 @@
 
       const submitSlip = async () => {
         const hasData = slipForm.value.items.some(i => i.inQty !== '' || i.retQty !== '');
-        if (!hasData) return alert('請填寫數量');
+        if (!hasData) return alert('請至少填寫一項商品的異動數量');
 
         loading.value = true;
+        errorMessage.value = '';
+        
         try {
           await push(ref(db, 'delivery_slips'), {
-            ...slipForm.value,
+            date: slipForm.value.date,
+            location: slipForm.value.location,
+            items: slipForm.value.items,
             timestamp: Date.now()
           });
-          alert('紀錄已同步至 Firebase');
-          // 重置表單
+          alert('紀錄已成功儲存至 Firebase！');
           slipForm.value.items.forEach(i => { i.inQty = ''; i.retQty = ''; });
-        } catch (e) {
-          alert('儲存失敗');
+        } catch (error) {
+          console.error("Firebase 寫入失敗:", error);
+          if(error.message.includes('Permission denied')) {
+             errorMessage.value = '寫入失敗：Firebase 資料庫權限未開放。';
+          } else {
+             errorMessage.value = '儲存失敗，請檢查網路連線。';
+          }
         } finally {
           loading.value = false;
         }
       };
 
       return {
-        currentTab, pageTitle, loading, locations, slipForm, history,
+        currentTab, pageTitle, loading, errorMessage, locations, slipForm, history,
         inventoryStats, totalStats, submitSlip
       };
     }
