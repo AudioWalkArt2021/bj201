@@ -13,18 +13,21 @@
     body { background-color: #F8FAFC; padding-bottom: 80px; }
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     .bento-card { @apply bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden; }
-    /* 讓表格第一行固定在左側，方便橫向滑動時看日期 */
-    .sticky-col { position: sticky; left: 0; z-index: 10; }
+    /* 電腦橫式表格專用樣式 */
+    .sheet-table th, .sheet-table td { border: 1px solid #E2E8F0; padding: 8px; text-align: center; }
+    .sheet-table th { background-color: #F1F5F9; color: #475569; font-weight: bold; }
+    .sheet-input { width: 60px; text-align: center; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 4px; padding: 4px; font-weight: bold; }
+    .sheet-input:focus { outline: none; border-color: #3B82F6; background: #EFF6FF; }
   </style>
 </head>
 <body class="text-slate-800 antialiased no-scrollbar">
 
-<div id="app" class="max-w-md mx-auto min-h-screen relative shadow-2xl bg-white">
+<div id="app" class="max-w-md md:max-w-4xl mx-auto min-h-screen relative shadow-2xl bg-white transition-all duration-300">
   
-  <header class="bg-white/90 backdrop-blur-md sticky top-0 z-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+  <header class="bg-white/90 backdrop-blur-md sticky top-0 z-50 px-5 py-4 border-b border-slate-100 flex justify-between items-center">
     <div>
       <h1 class="text-lg font-bold text-slate-900">{{ pageTitle }}</h1>
-      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian Goat Milk CRM v7.6</p>
+      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian CRM v7.9 (會計結算升級版)</p>
     </div>
     <div v-if="loading" class="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
   </header>
@@ -37,11 +40,11 @@
     <div class="bento-card p-5">
       <div class="flex gap-3 mb-4">
         <div class="flex-1">
-          <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">配送日期</label>
+          <label class="text-[11px] font-bold text-slate-400 ml-1">配送日期</label>
           <input v-model="slipForm.date" type="date" class="w-full mt-1 p-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold">
         </div>
         <div class="flex-1">
-          <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">配送據點</label>
+          <label class="text-[11px] font-bold text-slate-400 ml-1">配送據點</label>
           <select v-model="slipForm.location" class="w-full mt-1 p-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 text-sm font-bold text-blue-600">
             <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
           </select>
@@ -53,201 +56,237 @@
           <thead class="bg-slate-50 text-slate-500 text-[10px] font-bold">
             <tr>
               <th class="p-3 text-left">品名規格</th>
-              <th class="p-3 text-center w-16">進(+)</th>
-              <th class="p-3 text-center w-16">退(-)</th>
+              <th class="p-3 text-center w-14">進(+)</th>
+              <th class="p-3 text-center w-14">退(-)</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-50">
             <tr v-for="(item, idx) in slipForm.items" :key="idx">
               <td class="p-3 font-bold text-slate-700 text-xs leading-tight">{{ item.name }}</td>
-              <td class="p-2">
-                <input v-model.number="item.inQty" type="number" placeholder="0" class="w-full p-2 text-center rounded-xl bg-blue-50 text-blue-700 font-black border-none focus:ring-2 focus:ring-blue-400">
+              <td class="p-1.5">
+                <input v-model.number="item.inQty" type="number" placeholder="-" class="w-full p-2 text-center rounded-xl bg-blue-50 text-blue-700 font-black border-none focus:ring-2 outline-none">
               </td>
-              <td class="p-2">
-                <input v-model.number="item.retQty" type="number" placeholder="0" class="w-full p-2 text-center rounded-xl bg-red-50 text-red-700 font-black border-none focus:ring-2 focus:ring-red-400">
+              <td class="p-1.5">
+                <input v-model.number="item.retQty" type="number" placeholder="-" class="w-full p-2 text-center rounded-xl bg-red-50 text-red-700 font-black border-none focus:ring-2 outline-none">
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <button @click="submitSlip" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl mt-5 active:scale-95 transition-all shadow-lg shadow-slate-200">
-        送出此張出貨單
+      <button @click="submitSlip" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl mt-5 active:scale-95 transition-all shadow-lg shadow-slate-200 flex justify-center items-center gap-2">
+        <span>儲存出退貨紀錄</span>
       </button>
+      <p class="text-[10px] text-center text-slate-400 mt-2">系統將自動記錄精確寫入時間</p>
     </div>
   </main>
 
-  <main v-show="currentTab === 'analytics'" class="p-4 space-y-4">
-    <div class="bento-card p-4 bg-slate-900 text-white flex justify-between items-center">
-      <div>
-        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">結算帳期</label>
-        <select v-model="selectedPeriodIndex" class="bg-slate-800 text-white border-none outline-none font-bold text-sm rounded-lg p-1">
-          <option v-for="(p, idx) in periods" :key="idx" :value="idx">{{ p.label }}</option>
-        </select>
+  <main v-show="currentTab === 'history'" class="p-3 space-y-3">
+    
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3 px-1">
+      <div class="bg-slate-200 p-1 rounded-xl flex gap-1 w-full md:w-auto">
+        <button @click="deviceMode = 'mobile'" :class="deviceMode === 'mobile' ? 'bg-white shadow text-blue-600' : 'text-slate-500'" class="flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all">📱 手機直式</button>
+        <button @click="deviceMode = 'desktop'" :class="deviceMode === 'desktop' ? 'bg-white shadow text-blue-600' : 'text-slate-500'" class="flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all">💻 電腦橫式表</button>
       </div>
-      <div class="text-right">
-        <p class="text-[10px] text-slate-400">本期成本總計</p>
-        <p class="text-xl font-black text-blue-400">${{ currentPeriodTotalCost.toLocaleString() }}</p>
+
+      <select v-model="selectedPeriodIndex" class="bg-slate-800 text-white border-none outline-none font-bold text-sm rounded-lg p-2 w-full md:w-auto shadow-md">
+        <option v-for="(p, idx) in periods" :key="idx" :value="idx">{{ p.label }}</option>
+      </select>
+    </div>
+
+    <div v-if="history.length === 0 && !loading" class="text-center py-20 text-slate-300">尚無歷史紀錄</div>
+
+    <div v-if="deviceMode === 'mobile'">
+      <div class="flex justify-end mb-2">
+        <div class="bg-slate-100 p-1 rounded-xl flex gap-1">
+          <button @click="historyView = 'list'" :class="historyView === 'list' ? 'bg-white shadow text-slate-700' : 'text-slate-400'" class="px-3 py-1 text-[10px] font-bold rounded-lg transition-all">流水帳(可編輯)</button>
+          <button @click="historyView = 'table'" :class="historyView === 'table' ? 'bg-white shadow text-slate-700' : 'text-slate-400'" class="px-3 py-1 text-[10px] font-bold rounded-lg transition-all">極簡表格</button>
+        </div>
+      </div>
+
+      <div v-if="historyView === 'list'" class="space-y-3">
+        <div v-for="record in currentPeriodData" :key="record.id" class="bento-card p-4">
+          <div v-if="editingId !== record.id">
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md">{{ getFormattedDate(record.date) }}</span>
+                <h3 class="font-bold text-slate-800 mt-1">{{ record.location }}</h3>
+                <div class="text-[9px] text-slate-400 mt-1">🕒 登錄時間：{{ formatDateTime(record.timestamp) }}</div>
+              </div>
+              <button @click="startEdit(record)" class="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">✏️</button>
+            </div>
+            <div class="space-y-1 mt-2">
+              <div v-for="(item, idx) in record.items" :key="idx" v-show="item.inQty || item.retQty" class="flex justify-between text-[11px] py-1 border-t border-slate-50 border-dotted">
+                <span class="text-slate-500">{{ item.name.split('(')[0] }}</span>
+                <span class="font-bold text-slate-700">
+                  <span v-if="item.inQty" class="text-blue-600">+{{ item.inQty }}</span>
+                  <span v-if="item.retQty" class="text-rose-500 ml-2">-{{ item.retQty }}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="bg-blue-50/30 -m-4 p-4 rounded-3xl border border-blue-200">
+            <div class="flex gap-2 mb-3">
+              <input v-model="editData.date" type="date" class="w-1/2 p-2 rounded-lg text-xs font-bold border border-blue-200">
+              <select v-model="editData.location" class="w-1/2 p-2 rounded-lg text-xs font-bold border border-blue-200">
+                <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
+              </select>
+            </div>
+            <div v-for="(item, idx) in editData.items" :key="idx" class="flex items-center gap-2 mb-2 text-xs">
+              <span class="w-1/3 truncate font-bold text-slate-600">{{ item.name.split('(')[0] }}</span>
+              <input v-model.number="item.inQty" type="number" placeholder="進+" class="w-1/3 p-1.5 text-center rounded bg-white border border-blue-200 text-blue-600 font-bold">
+              <input v-model.number="item.retQty" type="number" placeholder="退-" class="w-1/3 p-1.5 text-center rounded bg-white border border-rose-200 text-rose-600 font-bold">
+            </div>
+            <div class="flex gap-2 mt-4">
+              <button @click="saveEdit" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded-xl text-xs">儲存</button>
+              <button @click="cancelEdit" class="flex-1 bg-slate-300 text-slate-700 font-bold py-2 rounded-xl text-xs">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="historyView === 'table'" class="bento-card bg-white p-2">
+        <table class="w-full text-left text-xs table-fixed">
+          <thead class="bg-slate-800 text-white font-bold rounded-t-xl overflow-hidden">
+            <tr>
+              <th class="p-2 w-[28%] text-[10px] text-center rounded-tl-xl">日期</th>
+              <th v-for="p in products" :key="p.name" class="p-1 w-[14%] text-center text-[10px]">{{ p.tinyName }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="record in currentPeriodData" :key="record.id" class="hover:bg-slate-50">
+              <td class="p-1 text-center border-r border-slate-50">
+                <div class="font-bold text-slate-800 text-[10px]">{{ getFormattedDate(record.date, true) }}</div>
+              </td>
+              <template v-for="p in products">
+                <td class="p-1 text-center border-r border-slate-50 align-middle">
+                  <div class="flex flex-col items-center justify-center text-[10px] font-black leading-tight">
+                    <span v-if="getHistoryQty(record, p.name).in" class="text-blue-600">+{{ getHistoryQty(record, p.name).in }}</span>
+                    <span v-if="getHistoryQty(record, p.name).ret" class="text-rose-500 mt-0.5">-{{ getHistoryQty(record, p.name).ret }}</span>
+                    <span v-if="!getHistoryQty(record, p.name).in && !getHistoryQty(record, p.name).ret" class="text-slate-200 font-normal">-</span>
+                  </div>
+                </td>
+              </template>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <div class="bento-card overflow-x-auto">
-      <div class="p-3 border-b border-slate-50 bg-slate-50">
-        <h3 class="font-bold text-sm text-slate-700">門市請款結算表</h3>
+    <div v-if="deviceMode === 'desktop'" class="space-y-6">
+      
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto p-4">
+         <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold text-slate-800 text-sm">💰 門市結算對帳表 <span class="text-slate-400 font-normal ml-2">({{ periods[selectedPeriodIndex]?.label }})</span></h3>
+            <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded">實地盤存制：銷售 = 上期 + 進貨 - 本期存貨</span>
+         </div>
+         <table class="w-full text-xs sheet-table whitespace-nowrap">
+            <thead>
+               <tr>
+                 <th class="text-left w-1/4">名稱</th>
+                 <th>上期庫存</th>
+                 <th>至12號進貨</th>
+                 <th>本期存貨數量</th>
+                 <th class="bg-green-50 text-green-700">銷售</th>
+                 <th>成本</th>
+                 <th class="bg-blue-50 text-blue-700">成本合計</th>
+               </tr>
+            </thead>
+            <tbody>
+               <tr v-for="stat in desktopSummaryStats" :key="stat.name" class="hover:bg-slate-50 transition-colors">
+                 <td class="text-left font-bold text-slate-700">{{ stat.shortName }}</td>
+                 <td>
+                   <input type="number" v-model.number="periodInv[stat.name].initial" @change="savePeriodInv" class="sheet-input" placeholder="0">
+                 </td>
+                 <td class="font-bold text-blue-600">{{ stat.in }}</td>
+                 <td>
+                   <input type="number" v-model.number="periodInv[stat.name].final" @change="savePeriodInv" class="sheet-input" placeholder="0">
+                 </td>
+                 <td class="font-black text-green-600 text-sm bg-green-50/30">{{ stat.sales }}</td>
+                 <td class="text-slate-500">${{ stat.cost }}</td>
+                 <td class="font-black text-blue-700 text-sm bg-blue-50/30">${{ stat.totalCost.toLocaleString() }}</td>
+               </tr>
+               <tr class="bg-slate-50 font-black">
+                 <td colspan="6" class="text-right text-slate-500">總計應請款金額：</td>
+                 <td class="text-red-600 text-base">${{ desktopTotalCost.toLocaleString() }}</td>
+               </tr>
+            </tbody>
+         </table>
       </div>
-      <table class="w-full text-left whitespace-nowrap">
-        <thead class="bg-white text-slate-400 text-[10px] font-bold border-b border-slate-100">
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto p-4">
+         <h3 class="font-bold text-slate-800 text-sm mb-3">📅 每日進退貨與累計明細表</h3>
+         <table class="w-full text-[10px] sheet-table whitespace-nowrap">
+            <thead>
+               <tr>
+                 <th rowspan="2" class="min-w-[80px]">日期</th>
+                 <th :colspan="products.length" class="bg-blue-50">當日進貨量</th>
+                 <th :colspan="products.length" class="bg-indigo-50">累積進貨量 (至當日)</th>
+                 <th :colspan="products.length" class="bg-rose-50">當日退回量</th>
+               </tr>
+               <tr>
+                 <template v-for="n in 3">
+                    <th v-for="p in products" :key="p.name + n" class="font-normal text-slate-600">{{ p.tinyName }}</th>
+                 </template>
+               </tr>
+            </thead>
+            <tbody>
+               <tr v-for="row in desktopDailyMatrix" :key="row.date" class="hover:bg-slate-50">
+                 <td class="font-bold text-slate-700">{{ getFormattedDate(row.date) }}</td>
+                 <td v-for="p in products" :key="'in'+p.name" :class="row.data[p.name].in > 0 ? 'text-blue-600 font-bold' : 'text-slate-300'">
+                   {{ row.data[p.name].in || '-' }}
+                 </td>
+                 <td v-for="p in products" :key="'cum'+p.name" class="font-bold text-indigo-700 bg-indigo-50/10 border-indigo-100">
+                   {{ row.data[p.name].cumulativeIn || '-' }}
+                 </td>
+                 <td v-for="p in products" :key="'ret'+p.name" :class="row.data[p.name].ret > 0 ? 'text-rose-600 font-bold' : 'text-slate-300'">
+                   {{ row.data[p.name].ret || '-' }}
+                 </td>
+               </tr>
+            </tbody>
+         </table>
+      </div>
+
+    </div>
+  </main>
+
+  <main v-show="currentTab === 'stock'" class="p-4 space-y-4">
+    <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-sm text-blue-800 mb-4">
+      📦 廠內盤點紀錄。每次儲存皆會記錄精確時間點。
+    </div>
+    <div class="bento-card overflow-hidden">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 text-slate-500 font-bold">
           <tr>
             <th class="p-3">品名</th>
-            <th class="p-3 text-center">進貨</th>
-            <th class="p-3 text-center">銷量</th>
-            <th class="p-3 text-right">批價</th>
-            <th class="p-3 text-right">合計</th>
+            <th class="p-3 text-center">今日已配送</th>
+            <th class="p-3 text-center w-24">廠內現存</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-50 text-xs">
-          <tr v-for="stat in currentPeriodStats" :key="stat.name" class="hover:bg-slate-50">
-            <td class="p-3 font-bold text-slate-700 truncate max-w-[120px]">{{ stat.shortName }}</td>
-            <td class="p-3 text-center text-blue-600 font-semibold">{{ stat.in }}</td>
-            <td class="p-3 text-center text-green-600 font-black">{{ stat.sales }}</td>
-            <td class="p-3 text-right text-slate-500">{{ stat.cost }}</td>
-            <td class="p-3 text-right font-bold text-slate-800">${{ stat.totalCost.toLocaleString() }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="bento-card p-4">
-      <div class="mb-4">
-        <h3 class="font-bold text-sm text-slate-800">羊奶(大/小) 每日銷量趨勢</h3>
-        <p class="text-[10px] text-slate-400 mt-1">追蹤本期內大小瓶羊奶的實際消耗量對比</p>
-      </div>
-      <div class="relative h-48 w-full">
-        <canvas id="milkTrendChart"></canvas>
-      </div>
-    </div>
-
-    <div class="bento-card p-4">
-      <div class="mb-4">
-        <h3 class="font-bold text-sm text-slate-800">全品項每週銷售節奏</h3>
-      </div>
-      <div class="relative h-40 w-full">
-        <canvas id="weeklyChart"></canvas>
-      </div>
-    </div>
-  </main>
-
-  <main v-show="currentTab === 'history'" class="p-4 space-y-3">
-    
-    <div class="flex justify-between items-center mb-2">
-      <h2 class="text-sm font-bold text-slate-700">歷史出貨明細</h2>
-      <div class="bg-slate-100 p-1 rounded-xl flex gap-1">
-        <button @click="historyView = 'list'" :class="historyView === 'list' ? 'bg-white shadow text-blue-600' : 'text-slate-500'" class="px-3 py-1 text-xs font-bold rounded-lg transition-all">流水帳</button>
-        <button @click="historyView = 'table'" :class="historyView === 'table' ? 'bg-white shadow text-blue-600' : 'text-slate-500'" class="px-3 py-1 text-xs font-bold rounded-lg transition-all">表格 (Sheet)</button>
-      </div>
-    </div>
-
-    <div v-if="history.length === 0 && !loading" class="text-center py-20 text-slate-300">
-      <span class="text-4xl block mb-2">📄</span>尚無歷史紀錄
-    </div>
-
-    <div v-if="historyView === 'list'" class="space-y-3">
-      <div v-for="record in history" :key="record.id" class="bento-card p-4">
-        <div class="flex justify-between items-start mb-2">
-          <div>
-            <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md">{{ record.date }}</span>
-            <h3 class="font-bold text-slate-800 mt-1">{{ record.location }}</h3>
-          </div>
-        </div>
-        <div class="space-y-1">
-          <div v-for="(item, idx) in record.items" :key="idx" v-show="item.inQty || item.retQty" class="flex justify-between text-[11px] py-1 border-t border-slate-50 border-dotted">
-            <span class="text-slate-500">{{ item.name }}</span>
-            <span class="font-bold text-slate-700">
-              <span v-if="item.inQty" class="text-blue-600">+{{ item.inQty }}</span>
-              <span v-if="item.retQty" class="text-rose-500 ml-2">-{{ item.retQty }}</span>
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="historyView === 'table'" class="bento-card overflow-x-auto relative">
-      <table class="w-full text-left whitespace-nowrap text-xs">
-        <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
-          <tr>
-            <th class="p-2 sticky-col bg-slate-50 border-r border-slate-200 min-w-[80px]">日期 / 據點</th>
-            <th v-for="p in products" :key="p.name" class="p-2 text-center border-r border-slate-200" colspan="2">{{ p.shortName }}</th>
-          </tr>
-          <tr class="text-[10px]">
-            <th class="p-1 sticky-col bg-slate-50 border-r border-slate-200 border-b border-slate-200"></th>
-            <template v-for="p in products">
-              <th class="p-1 text-center text-blue-600 border-b border-slate-200">進</th>
-              <th class="p-1 text-center text-rose-500 border-r border-slate-200 border-b border-slate-200">退</th>
-            </template>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
-          <tr v-for="record in history" :key="record.id" class="hover:bg-slate-50">
-            <td class="p-2 sticky-col bg-white border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-              <div class="font-bold text-slate-700">{{ record.date.substring(5) }}</div>
-              <div class="text-[10px] text-slate-400">{{ record.location }}</div>
+        <tbody class="divide-y divide-slate-50">
+          <tr v-for="(item, idx) in currentStock" :key="idx">
+            <td class="p-3 font-bold text-slate-700 text-xs">{{ item.tinyName }}</td>
+            <td class="p-3 text-center text-blue-600 font-bold">-{{ item.todayDelivered }}</td>
+            <td class="p-2">
+              <input v-model.number="item.qty" type="number" placeholder="盤點數" class="w-full p-2 text-center rounded-xl bg-slate-100 border-none font-black outline-none focus:ring-2 focus:ring-slate-400">
             </td>
-            <template v-for="p in products">
-              <td class="p-2 text-center text-blue-600 font-bold bg-blue-50/20">{{ getHistoryQty(record, p.name, 'inQty') }}</td>
-              <td class="p-2 text-center text-rose-500 font-bold bg-rose-50/20 border-r border-slate-100">{{ getHistoryQty(record, p.name, 'retQty') }}</td>
-            </template>
           </tr>
         </tbody>
       </table>
     </div>
-  </main>
-
-  <main v-show="currentTab === 'products'" class="p-4 space-y-4">
-    <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-sm text-blue-800 mb-4">
-      💡 這裡修改的「批發價」會即時連動並回溯校正「對帳分析」裡面的歷史結算金額。
-    </div>
-    <div v-for="(prod, idx) in products" :key="idx" class="bento-card p-4 space-y-3">
-      <div class="flex flex-col gap-2">
-        <div>
-          <label class="text-[10px] font-bold text-slate-400">系統簡稱</label>
-          <input v-model="prod.shortName" type="text" class="w-full p-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold outline-none focus:border-blue-400">
-        </div>
-        <div>
-          <label class="text-[10px] font-bold text-slate-400">出貨單完整品名 / 規格</label>
-          <input v-model="prod.name" type="text" class="w-full p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs outline-none focus:border-blue-400">
-        </div>
-        <div class="flex gap-3">
-          <div class="flex-1">
-            <label class="text-[10px] font-bold text-slate-400">批發價 (成本)</label>
-            <input v-model.number="prod.cost" type="number" class="w-full p-2 rounded-lg bg-red-50 text-red-700 border border-red-100 font-bold text-sm outline-none focus:border-red-400">
-          </div>
-          <div class="flex-1">
-            <label class="text-[10px] font-bold text-slate-400">終端售價</label>
-            <input v-model.number="prod.price" type="number" class="w-full p-2 rounded-lg bg-green-50 text-green-700 border border-green-100 font-bold text-sm outline-none focus:border-green-400">
-          </div>
-        </div>
-      </div>
-    </div>
-    <button @click="saveProductSettings" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl mt-5 active:scale-95 transition-all shadow-lg shadow-blue-200">
-      儲存商品設定
+    <button @click="saveStock" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl active:scale-95 transition-all shadow-lg shadow-slate-200">
+      儲存盤點快照
     </button>
   </main>
 
-  <nav class="fixed bottom-0 w-full max-w-md bg-white/90 backdrop-blur-xl border-t border-slate-100 h-20 px-4 flex justify-between items-center z-50">
-    <button @click="currentTab = 'entry'" :class="currentTab === 'entry' ? 'text-blue-600' : 'text-slate-300'" class="flex flex-col items-center gap-1 transition-colors w-1/4">
-      <span class="text-2xl">✍️</span>
-      <span class="text-[10px] font-bold">填寫</span>
+  <nav class="fixed bottom-0 w-full max-w-md md:max-w-4xl bg-white/90 backdrop-blur-xl border-t border-slate-100 h-[72px] px-2 flex justify-between items-center z-50">
+    <button @click="currentTab = 'entry'" :class="currentTab === 'entry' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/4 h-full">
+      <span class="text-xl mb-0.5">✍️</span><span class="text-[9px] font-bold">填寫</span>
     </button>
-    <button @click="switchTab('analytics')" :class="currentTab === 'analytics' ? 'text-blue-600' : 'text-slate-300'" class="flex flex-col items-center gap-1 transition-colors w-1/4">
-      <span class="text-2xl">📊</span>
-      <span class="text-[10px] font-bold">對帳</span>
+    <button @click="currentTab = 'history'" :class="currentTab === 'history' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/4 h-full">
+      <span class="text-xl mb-0.5">📜</span><span class="text-[9px] font-bold">結算與紀錄</span>
     </button>
-    <button @click="currentTab = 'history'" :class="currentTab === 'history' ? 'text-blue-600' : 'text-slate-300'" class="flex flex-col items-center gap-1 transition-colors w-1/4">
-      <span class="text-2xl">📜</span>
-      <span class="text-[10px] font-bold">紀錄</span>
-    </button>
-    <button @click="currentTab = 'products'" :class="currentTab === 'products' ? 'text-blue-600' : 'text-slate-300'" class="flex flex-col items-center gap-1 transition-colors w-1/4">
-      <span class="text-2xl">📦</span>
-      <span class="text-[10px] font-bold">商品</span>
+    <button @click="currentTab = 'stock'" :class="currentTab === 'stock' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/4 h-full">
+      <span class="text-xl mb-0.5">📦</span><span class="text-[9px] font-bold">廠內庫存</span>
     </button>
   </nav>
 
@@ -255,7 +294,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, push, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, push, onValue, set, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBVc4MZ4DOPiit0VGVSYP0x7wICbjAbW-o",
@@ -269,31 +308,33 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-
-  const { createApp, ref: vueRef, computed, onMounted, watch, nextTick } = Vue;
+  const { createApp, ref: vueRef, computed, onMounted, watch } = Vue;
 
   createApp({
     setup() {
-      const currentTab = vueRef('entry');
-      const historyView = vueRef('table'); // 預設使用表格視角
+      const currentTab = vueRef('history');
+      const deviceMode = vueRef('mobile'); // 'mobile' | 'desktop'
+      const historyView = vueRef('list'); 
       const loading = vueRef(false);
       const history = vueRef([]);
       const errorMessage = vueRef('');
+      const periodInv = vueRef({}); // 儲存電腦版的 上期庫存與本期存貨
       
       const locations = ['碧萃茶飲店', '火燒農會', '主辦公室', '其他留存'];
       
       const defaultProducts = [
-        { id: 'milk-950', name: '五寮尖羊奶(大)950cc', shortName: '大羊奶950cc', spec: '950g', cost: 128, price: 150 },
-        { id: 'milk-500', name: '五寮尖羊奶(小)500cc', shortName: '小羊奶500cc', spec: '500g', cost: 85, price: 100 },
-        { id: 'bun-brown', name: '羊奶小饅頭 (8入-黑糖)', shortName: '黑糖小饅頭', spec: '8入 (32.5g/顆)', cost: 85, price: 100 },
-        { id: 'bun-orig', name: '羊奶小饅頭 (8入-原味)', shortName: '原味小饅頭', spec: '8入', cost: 85, price: 100 },
-        { id: 'bun-walnut', name: '桂圓核桃黑糖羊奶饅頭 (4入)', shortName: '桂圓核桃饅頭', spec: '4入', cost: 128, price: 150 }
+        { name: '五寮尖羊奶(大)950cc', shortName: '大羊奶950cc', tinyName: '大奶', cost: 128, price: 150 },
+        { name: '五寮尖羊奶(小)500cc', shortName: '小羊奶500cc', tinyName: '小奶', cost: 85, price: 100 },
+        { name: '羊奶小饅頭 (8入-黑糖)', shortName: '黑糖小饅頭', tinyName: '黑糖', cost: 85, price: 100 },
+        { name: '羊奶小饅頭 (8入-原味)', shortName: '原味小饅頭', tinyName: '原味', cost: 85, price: 100 },
+        { name: '桂圓核桃黑糖羊奶饅頭 (4入)', shortName: '桂圓核桃饅頭', tinyName: '桂圓', cost: 128, price: 150 }
       ];
 
       const products = vueRef(JSON.parse(JSON.stringify(defaultProducts)));
+      const currentStock = vueRef([]); 
 
       const pageTitle = computed(() => {
-        const titles = { entry: '出貨作業', analytics: '結算與分析', history: '歷史紀錄', products: '商品基本資料' };
+        const titles = { entry: '出貨作業', history: '會計結算與紀錄', stock: '廠內庫存盤點' };
         return titles[currentTab.value];
       });
 
@@ -303,253 +344,222 @@
         items: products.value.map(p => ({ name: p.name, inQty: '', retQty: '' }))
       });
 
-      watch(products, (newProducts) => {
-        if(currentTab.value === 'products') {
-            slipForm.value.items = newProducts.map(p => {
-                const existing = slipForm.value.items.find(i => i.name === p.name);
-                return { name: p.name, inQty: existing ? existing.inQty : '', retQty: existing ? existing.retQty : '' };
-            });
-        }
-      }, { deep: true });
-
-      const generatePeriods = () => {
-        const periodList = [];
-        let d = new Date();
-        let year = d.getFullYear();
-        let month = d.getMonth() + 1;
-        if (d.getDate() <= 12) { month -= 1; }
-        if (month === 0) { month = 12; year -= 1; }
-
-        for(let i=0; i<6; i++) {
-          let prevMonth = month - 1;
-          let prevYear = year;
-          if (prevMonth === 0) { prevMonth = 12; prevYear -= 1; }
-          let startStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-13`;
-          let endStr = `${year}-${String(month).padStart(2, '0')}-12`;
-          periodList.push({ label: `${prevMonth}/13 - ${month}/12 期`, start: startStr, end: endStr });
-          month--;
-          if (month === 0) { month = 12; year -= 1; }
-        }
-        return periodList;
+      // --- 時間與名稱格式化 ---
+      const formatDateTime = (ts) => {
+         if(!ts) return '未記錄';
+         const d = new Date(ts);
+         return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
       };
 
-      const periods = vueRef(generatePeriods());
-      const selectedPeriodIndex = vueRef(0);
-      let barChartInstance = null;
-      let lineChartInstance = null;
+      const getFormattedDate = (dateStr, short = false) => {
+        const d = new Date(dateStr);
+        const days = ['(日)','(一)','(二)','(三)','(四)','(五)','(六)'];
+        const dayStr = days[d.getDay()];
+        if(short) return `${d.getMonth()+1}/${d.getDate()}\n${dayStr}`;
+        return `${dateStr.substring(5)} ${dayStr}`;
+      };
 
-      const currentPeriodData = computed(() => {
-        const p = periods.value[selectedPeriodIndex.value];
-        // 過濾區間內資料，並由舊到新排序供折線圖使用
-        return history.value.filter(r => r.date >= p.start && r.date <= p.end).sort((a, b) => a.date.localeCompare(b.date));
-      });
-
-      // 核心修復：統一舊名稱與新名稱的判定
       const getNormalizedName = (rawName) => {
-        const aliasMap = {
-          '手擠 山羊奶 (950g-大瓶)': '五寮尖羊奶(大)950cc',
-          '手擠 山羊奶 (500g-中瓶)': '五寮尖羊奶(小)500cc'
-        };
-        // 嘗試去空白再比對，避免手寫輸入時多加了空白
+        const aliasMap = { '手擠 山羊奶 (950g-大瓶)': '五寮尖羊奶(大)950cc', '手擠 山羊奶 (500g-中瓶)': '五寮尖羊奶(小)500cc' };
         return aliasMap[rawName.trim()] || rawName;
       };
 
-      // 歷史表格專用：抓取特定品項數值 (自動判定別名)
-      const getHistoryQty = (record, targetName, type) => {
+      const getHistoryQty = (record, targetName) => {
         const item = record.items.find(i => getNormalizedName(i.name) === getNormalizedName(targetName));
-        return item && item[type] ? item[type] : '-';
+        return { in: item?.inQty || '', ret: item?.retQty || '' };
       };
 
-      const currentPeriodStats = computed(() => {
+      // --- 帳期邏輯 (精確顯示 3/13~4/12 格式) ---
+      const periods = vueRef((() => {
+        const list = [];
+        let d = new Date(), y = d.getFullYear(), m = d.getMonth() + 1;
+        if (d.getDate() <= 12) m -= 1;
+        if (m === 0) { m = 12; y -= 1; }
+        for(let i=0; i<6; i++) {
+          let pm = m - 1, py = y;
+          if (pm === 0) { pm = 12; py -= 1; }
+          list.push({ 
+            label: `${pm}/13 ~ ${m}/12 期`, 
+            start: `${py}-${String(pm).padStart(2,'0')}-13`, 
+            end: `${y}-${String(m).padStart(2,'0')}-12` 
+          });
+          m--; if (m === 0) { m = 12; y -= 1; }
+        }
+        return list;
+      })());
+      
+      const selectedPeriodIndex = vueRef(0);
+      const currentPeriodData = computed(() => {
+        const p = periods.value[selectedPeriodIndex.value];
+        return history.value.filter(r => r.date >= p.start && r.date <= p.end).sort((a,b) => a.date.localeCompare(b.date));
+      });
+
+      // --- 電腦版：會計結算表邏輯 ---
+      const loadPeriodInv = () => {
+        const p = periods.value[selectedPeriodIndex.value];
+        if(!p) return;
+        onValue(ref(db, `period_inv/${p.start}`), snap => {
+          const data = snap.exists() ? snap.val() : {};
+          // 初始化確保每個產品都有 default {initial: 0, final: 0}
+          const safeData = {};
+          products.value.forEach(prod => {
+             safeData[prod.name] = data[prod.name] || { initial: 0, final: 0 };
+          });
+          periodInv.value = safeData;
+        }, { onlyOnce: true });
+      };
+
+      watch(selectedPeriodIndex, loadPeriodInv);
+      watch(deviceMode, (val) => { if(val === 'desktop') loadPeriodInv(); });
+
+      const savePeriodInv = () => {
+        const p = periods.value[selectedPeriodIndex.value];
+        set(ref(db, `period_inv/${p.start}`), periodInv.value);
+      };
+
+      // 實地盤存制：銷售 = 上期 + 本期進貨 - 本期存貨
+      const desktopSummaryStats = computed(() => {
         const map = {};
-        products.value.forEach(p => map[p.name] = { in: 0, ret: 0, cost: p.cost, shortName: p.shortName });
+        products.value.forEach(p => map[p.name] = { in: 0 });
 
         currentPeriodData.value.forEach(record => {
           record.items.forEach(item => {
-            const normalizedName = getNormalizedName(item.name);
-            if(map[normalizedName]) {
-              map[normalizedName].in += (Number(item.inQty) || 0);
-              map[normalizedName].ret += (Number(item.retQty) || 0);
-            }
+            const nName = getNormalizedName(item.name);
+            if(map[nName]) map[nName].in += (Number(item.inQty) || 0);
           });
         });
 
         return products.value.map(p => {
-          const stats = map[p.name];
-          const sales = stats.in - stats.ret;
+          const inv = periodInv.value[p.name] || { initial: 0, final: 0 };
+          const totalIn = map[p.name].in;
+          // 核心公式！
+          const sales = (inv.initial || 0) + totalIn - (inv.final || 0);
           return {
             name: p.name,
-            shortName: stats.shortName,
-            in: stats.in,
+            shortName: p.shortName,
+            in: totalIn,
             sales: sales,
-            cost: stats.cost,
-            totalCost: sales * stats.cost
+            cost: p.cost,
+            totalCost: sales * p.cost
           };
         });
       });
 
-      const currentPeriodTotalCost = computed(() => {
-        return currentPeriodStats.value.reduce((sum, stat) => sum + stat.totalCost, 0);
+      const desktopTotalCost = computed(() => desktopSummaryStats.value.reduce((s, st) => s + st.totalCost, 0));
+
+      // --- 電腦版：每日矩陣表邏輯 ---
+      const getDatesInRange = (start, end) => {
+        const arr = [];
+        let dt = new Date(start);
+        const endDt = new Date(end);
+        while(dt <= endDt) {
+          arr.push(dt.toISOString().split('T')[0]);
+          dt.setDate(dt.getDate() + 1);
+        }
+        return arr;
+      };
+
+      const desktopDailyMatrix = computed(() => {
+        const p = periods.value[selectedPeriodIndex.value];
+        const dates = getDatesInRange(p.start, p.end);
+        const matrix = [];
+        const runningTotals = {};
+        products.value.forEach(prod => runningTotals[prod.name] = 0);
+
+        // 將該期的資料按日期 Group
+        const recordsByDate = {};
+        currentPeriodData.value.forEach(r => {
+           if(!recordsByDate[r.date]) recordsByDate[r.date] = [];
+           recordsByDate[r.date].push(r);
+        });
+
+        dates.forEach(date => {
+           const row = { date, data: {} };
+           const dailyRecords = recordsByDate[date] || [];
+           
+           products.value.forEach(prod => {
+              let dailyIn = 0, dailyRet = 0;
+              dailyRecords.forEach(r => {
+                 const item = r.items.find(i => getNormalizedName(i.name) === getNormalizedName(prod.name));
+                 if(item) {
+                    dailyIn += (Number(item.inQty) || 0);
+                    dailyRet += (Number(item.retQty) || 0);
+                 }
+              });
+              runningTotals[prod.name] += dailyIn;
+              row.data[prod.name] = {
+                 in: dailyIn,
+                 ret: dailyRet,
+                 cumulativeIn: runningTotals[prod.name]
+              };
+           });
+           // 只顯示有異動 或 今天以前的日期 (避免未來日期佔滿畫面)
+           const today = new Date().toISOString().split('T')[0];
+           const hasActivity = products.value.some(prod => row.data[prod.name].in > 0 || row.data[prod.name].ret > 0);
+           if(hasActivity || date <= today) {
+               matrix.push(row);
+           }
+        });
+        // 倒序顯示，新日期在上面
+        return matrix.reverse();
       });
 
-      const updateCharts = () => {
-        if (currentTab.value !== 'analytics') return;
-        
-        // --- 1. 每週節奏柱狀圖 (Bar Chart) ---
-        const daysData = [0, 0, 0, 0, 0, 0, 0];
-        currentPeriodData.value.forEach(record => {
-          const d = new Date(record.date);
-          const dayOfWeek = d.getDay();
-          let netForDay = 0;
-          record.items.forEach(item => {
-            netForDay += (Number(item.inQty) || 0) - (Number(item.retQty) || 0);
-          });
-          daysData[dayOfWeek] += netForDay;
-        });
+      // --- 手機編輯功能 ---
+      const editingId = vueRef(null);
+      const editData = vueRef({});
 
-        const barData = [...daysData.slice(1), daysData[0]];
-        
-        nextTick(() => {
-          const barCtx = document.getElementById('weeklyChart');
-          if (barCtx) {
-            if (barChartInstance) {
-              barChartInstance.data.datasets[0].data = barData;
-              barChartInstance.update();
-            } else {
-              barChartInstance = new Chart(barCtx, {
-                type: 'bar',
-                data: {
-                  labels: ['週一', '週二', '週三', '週四', '週五', '週六', '週日'],
-                  datasets: [{ label: '淨消耗量', data: barData, backgroundColor: '#94A3B8', borderRadius: 4 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-              });
+      const startEdit = (record) => {
+        editingId.value = record.id;
+        editData.value = JSON.parse(JSON.stringify(record));
+        products.value.forEach(p => {
+            if(!editData.value.items.find(i => getNormalizedName(i.name) === getNormalizedName(p.name))) {
+                editData.value.items.push({ name: p.name, inQty: '', retQty: '' });
             }
-          }
-
-          // --- 2. 大小羊奶每日趨勢折線圖 (Line Chart) ---
-          const dateMap = {}; // 收集這段期間內出現過的所有日期
-          currentPeriodData.value.forEach(r => {
-             if(!dateMap[r.date]) dateMap[r.date] = { large: 0, small: 0 };
-             r.items.forEach(item => {
-                 const name = getNormalizedName(item.name);
-                 const net = (Number(item.inQty) || 0) - (Number(item.retQty) || 0);
-                 if (name.includes('大)950cc')) dateMap[r.date].large += net;
-                 if (name.includes('小)500cc')) dateMap[r.date].small += net;
-             });
-          });
-
-          const sortedDates = Object.keys(dateMap).sort();
-          const labelsLine = sortedDates.map(d => d.substring(5)); // 只取 MM-DD
-          const dataLarge = sortedDates.map(d => dateMap[d].large);
-          const dataSmall = sortedDates.map(d => dateMap[d].small);
-
-          const lineCtx = document.getElementById('milkTrendChart');
-          if (lineCtx) {
-            if (lineChartInstance) {
-              lineChartInstance.data.labels = labelsLine;
-              lineChartInstance.data.datasets[0].data = dataLarge;
-              lineChartInstance.data.datasets[1].data = dataSmall;
-              lineChartInstance.update();
-            } else {
-              lineChartInstance = new Chart(lineCtx, {
-                type: 'line',
-                data: {
-                  labels: labelsLine,
-                  datasets: [
-                    { label: '大羊奶(950cc)', data: dataLarge, borderColor: '#3B82F6', backgroundColor: '#3B82F6', tension: 0.3, borderWidth: 3 },
-                    { label: '小羊奶(500cc)', data: dataSmall, borderColor: '#10B981', backgroundColor: '#10B981', tension: 0.3, borderWidth: 3 }
-                  ]
-                },
-                options: {
-                  responsive: true, maintainAspectRatio: false,
-                  interaction: { mode: 'index', intersect: false },
-                  plugins: { legend: { position: 'top', labels: { boxWidth: 12, usePointStyle: true, font: {size: 10} } } },
-                  scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
-                }
-              });
-            }
-          }
         });
       };
-
-      const switchTab = (tab) => {
-        currentTab.value = tab;
-        if (tab === 'analytics') setTimeout(updateCharts, 100);
+      const cancelEdit = () => { editingId.value = null; };
+      const saveEdit = async () => {
+        loading.value = true;
+        try {
+          await update(ref(db, 'delivery_slips/' + editingId.value), {
+             date: editData.value.date, location: editData.value.location, items: editData.value.items
+          });
+          editingId.value = null;
+        } catch(e) { alert('更新失敗'); }
+        loading.value = false;
       };
 
-      watch([selectedPeriodIndex, currentPeriodData], () => {
-        updateCharts();
-      }, { deep: true });
-
+      // --- 資料庫載入與儲存 ---
       onMounted(() => {
         loading.value = true;
-        const productsDbRef = ref(db, 'settings/products');
-        onValue(productsDbRef, (snapshot) => {
-          if (snapshot.exists()) {
-            products.value = snapshot.val();
-            if(slipForm.value.items.length === 0) {
-              slipForm.value.items = products.value.map(p => ({ name: p.name, inQty: '', retQty: '' }));
-            }
-          }
-        });
-
-        const dbRef = ref(db, 'delivery_slips');
-        onValue(dbRef, (snapshot) => {
+        onValue(ref(db, 'delivery_slips'), (snap) => {
           errorMessage.value = '';
-          const data = snapshot.val();
+          const data = snap.val();
           if (data) {
-            const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-            // 歷史紀錄介面保持由新到舊排列
-            history.value = list.sort((a, b) => b.date.localeCompare(a.date));
+            history.value = Object.keys(data).map(key => ({ id: key, ...data[key] }));
           }
           loading.value = false;
-        }, (error) => {
-          errorMessage.value = '資料庫連線異常：' + error.message;
-          loading.value = false;
-        });
+          // 初始化載入當期庫存設定
+          if(deviceMode.value === 'desktop') loadPeriodInv();
+        }, (error) => { errorMessage.value = '連線異常：' + error.message; loading.value = false; });
       });
 
       const submitSlip = async () => {
-        const hasData = slipForm.value.items.some(i => i.inQty !== '' || i.retQty !== '');
-        if (!hasData) return alert('請至少填寫一項商品的異動數量');
-
+        if (!slipForm.value.items.some(i => i.inQty !== '' || i.retQty !== '')) return alert('請填寫數量');
         loading.value = true;
-        errorMessage.value = '';
-        
         try {
-          await push(ref(db, 'delivery_slips'), {
-            date: slipForm.value.date,
-            location: slipForm.value.location,
-            items: slipForm.value.items,
-            timestamp: Date.now()
-          });
-          alert('紀錄已成功儲存！');
+          await push(ref(db, 'delivery_slips'), { ...slipForm.value, timestamp: Date.now() });
+          alert('出/退貨紀錄已儲存！');
           slipForm.value.items.forEach(i => { i.inQty = ''; i.retQty = ''; });
-        } catch (error) {
-          errorMessage.value = '儲存失敗，請檢查網路。';
-        } finally {
-          loading.value = false;
-        }
-      };
-
-      const saveProductSettings = async () => {
-        loading.value = true;
-        errorMessage.value = '';
-        try {
-          await set(ref(db, 'settings/products'), products.value);
-          alert('商品基本資料已更新並套用至系統！');
-        } catch (error) {
-          errorMessage.value = '商品設定儲存失敗。';
-        } finally {
-          loading.value = false;
-        }
+        } catch (e) {} finally { loading.value = false; }
       };
 
       return {
-        currentTab, historyView, pageTitle, loading, errorMessage, locations, slipForm, history,
-        periods, selectedPeriodIndex, currentPeriodStats, currentPeriodTotalCost, products,
-        submitSlip, switchTab, saveProductSettings, getHistoryQty
+        currentTab, deviceMode, historyView, pageTitle, loading, errorMessage, locations, slipForm, history,
+        periods, selectedPeriodIndex, currentPeriodData, products,
+        desktopSummaryStats, desktopTotalCost, periodInv, savePeriodInv, desktopDailyMatrix,
+        editingId, editData, startEdit, saveEdit, cancelEdit, currentStock, 
+        formatDateTime, getFormattedDate, getHistoryQty, submitSlip
       };
     }
   }).mount('#app');
