@@ -13,21 +13,27 @@
     body { background-color: #F8FAFC; padding-bottom: 80px; }
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     .bento-card { @apply bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden; }
-    /* 電腦橫式表格專用樣式 */
-    .sheet-table th, .sheet-table td { border: 1px solid #E2E8F0; padding: 8px; text-align: center; }
+    
+    /* 會計專用表格樣式 */
+    .sheet-table th, .sheet-table td { border: 1px solid #E2E8F0; padding: 6px 8px; text-align: center; }
     .sheet-table th { background-color: #F1F5F9; color: #475569; font-weight: bold; }
     .sheet-input { width: 60px; text-align: center; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 4px; padding: 4px; font-weight: bold; }
     .sheet-input:focus { outline: none; border-color: #3B82F6; background: #EFF6FF; }
+    
+    /* 凍結首兩欄 (橫向捲動時固定商品名稱與項目) */
+    .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: white; border-right: 1px solid #E2E8F0; width: 90px; min-width: 90px; }
+    .sticky-col-2 { position: sticky; left: 90px; z-index: 20; background-color: white; border-right: 2px solid #94A3B8; width: 60px; min-width: 60px;}
+    .sticky-header { z-index: 30 !important; background-color: #F1F5F9; }
   </style>
 </head>
 <body class="text-slate-800 antialiased no-scrollbar">
 
-<div id="app" class="max-w-md md:max-w-4xl mx-auto min-h-screen relative shadow-2xl bg-white transition-all duration-300">
+<div id="app" class="max-w-md md:max-w-5xl mx-auto min-h-screen relative shadow-2xl bg-white transition-all duration-300">
   
   <header class="bg-white/90 backdrop-blur-md sticky top-0 z-50 px-5 py-4 border-b border-slate-100 flex justify-between items-center">
     <div>
       <h1 class="text-lg font-bold text-slate-900">{{ pageTitle }}</h1>
-      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian CRM v7.9 (會計結算升級版)</p>
+      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian CRM v7.10 (專業會計版)</p>
     </div>
     <div v-if="loading" class="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
   </header>
@@ -73,46 +79,65 @@
           </tbody>
         </table>
       </div>
-      <button @click="submitSlip" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl mt-5 active:scale-95 transition-all shadow-lg shadow-slate-200 flex justify-center items-center gap-2">
-        <span>儲存出退貨紀錄</span>
+      <button @click="submitSlip" class="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl mt-5 active:scale-95 transition-all shadow-lg shadow-slate-200">
+        儲存出退貨紀錄
       </button>
-      <p class="text-[10px] text-center text-slate-400 mt-2">系統將自動記錄精確寫入時間</p>
     </div>
   </main>
 
-  <main v-show="currentTab === 'history'" class="p-3 space-y-3">
+  <main v-show="currentTab === 'history'" class="p-4 space-y-4">
     
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3 px-1">
-      <div class="bg-slate-200 p-1 rounded-xl flex gap-1 w-full md:w-auto">
-        <button @click="deviceMode = 'mobile'" :class="deviceMode === 'mobile' ? 'bg-white shadow text-blue-600' : 'text-slate-500'" class="flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all">📱 手機直式</button>
-        <button @click="deviceMode = 'desktop'" :class="deviceMode === 'desktop' ? 'bg-white shadow text-blue-600' : 'text-slate-500'" class="flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all">💻 電腦橫式表</button>
+    <div class="bg-slate-800 p-4 rounded-2xl shadow-md text-white space-y-3">
+      <div class="flex justify-between items-center">
+        <h2 class="text-sm font-bold">📊 結算與調閱控制台</h2>
+        <div class="bg-slate-700 p-1 rounded-lg flex gap-1">
+          <button @click="deviceMode = 'mobile'" :class="deviceMode === 'mobile' ? 'bg-white text-slate-800 shadow' : 'text-slate-300'" class="px-3 py-1 text-xs font-bold rounded transition-all">手機直式</button>
+          <button @click="deviceMode = 'desktop'" :class="deviceMode === 'desktop' ? 'bg-white text-slate-800 shadow' : 'text-slate-300'" class="px-3 py-1 text-xs font-bold rounded transition-all">電腦橫表</button>
+        </div>
       </div>
-
-      <select v-model="selectedPeriodIndex" class="bg-slate-800 text-white border-none outline-none font-bold text-sm rounded-lg p-2 w-full md:w-auto shadow-md">
-        <option v-for="(p, idx) in periods" :key="idx" :value="idx">{{ p.label }}</option>
-      </select>
+      
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <input type="checkbox" v-model="useCustomPeriod" id="customToggle" class="w-4 h-4 rounded text-blue-500">
+          <label for="customToggle" class="text-xs font-bold text-slate-300">啟用自訂查詢區間</label>
+        </div>
+        
+        <div v-if="!useCustomPeriod">
+          <select v-model="selectedPeriodIndex" class="w-full bg-slate-900 text-white border border-slate-600 outline-none font-bold text-sm rounded-xl p-3">
+            <option v-for="(p, idx) in periods" :key="idx" :value="idx">{{ p.label }}</option>
+          </select>
+        </div>
+        
+        <div v-if="useCustomPeriod" class="flex gap-2">
+          <div class="flex-1">
+            <label class="text-[10px] text-slate-400">起始日期</label>
+            <input type="date" v-model="customStart" class="w-full bg-slate-900 text-white border border-slate-600 rounded-lg p-2 text-xs outline-none focus:border-blue-500">
+          </div>
+          <div class="flex-1">
+            <label class="text-[10px] text-slate-400">結束日期</label>
+            <input type="date" v-model="customEnd" class="w-full bg-slate-900 text-white border border-slate-600 rounded-lg p-2 text-xs outline-none focus:border-blue-500">
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div v-if="history.length === 0 && !loading" class="text-center py-20 text-slate-300">尚無歷史紀錄</div>
-
-    <div v-if="deviceMode === 'mobile'">
-      <div class="flex justify-end mb-2">
+    <div v-if="deviceMode === 'mobile'" class="space-y-4">
+      <div class="flex justify-end">
         <div class="bg-slate-100 p-1 rounded-xl flex gap-1">
           <button @click="historyView = 'list'" :class="historyView === 'list' ? 'bg-white shadow text-slate-700' : 'text-slate-400'" class="px-3 py-1 text-[10px] font-bold rounded-lg transition-all">流水帳(可編輯)</button>
           <button @click="historyView = 'table'" :class="historyView === 'table' ? 'bg-white shadow text-slate-700' : 'text-slate-400'" class="px-3 py-1 text-[10px] font-bold rounded-lg transition-all">極簡表格</button>
         </div>
       </div>
-
+      
       <div v-if="historyView === 'list'" class="space-y-3">
         <div v-for="record in currentPeriodData" :key="record.id" class="bento-card p-4">
-          <div v-if="editingId !== record.id">
+           <div v-if="editingId !== record.id">
             <div class="flex justify-between items-start mb-2">
               <div>
                 <span class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md">{{ getFormattedDate(record.date) }}</span>
                 <h3 class="font-bold text-slate-800 mt-1">{{ record.location }}</h3>
-                <div class="text-[9px] text-slate-400 mt-1">🕒 登錄時間：{{ formatDateTime(record.timestamp) }}</div>
               </div>
-              <button @click="startEdit(record)" class="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">✏️</button>
+              <button @click="startEdit(record)" class="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">✏️ 編輯</button>
             </div>
             <div class="space-y-1 mt-2">
               <div v-for="(item, idx) in record.items" :key="idx" v-show="item.inQty || item.retQty" class="flex justify-between text-[11px] py-1 border-t border-slate-50 border-dotted">
@@ -143,109 +168,85 @@
           </div>
         </div>
       </div>
-
-      <div v-if="historyView === 'table'" class="bento-card bg-white p-2">
-        <table class="w-full text-left text-xs table-fixed">
-          <thead class="bg-slate-800 text-white font-bold rounded-t-xl overflow-hidden">
-            <tr>
-              <th class="p-2 w-[28%] text-[10px] text-center rounded-tl-xl">日期</th>
-              <th v-for="p in products" :key="p.name" class="p-1 w-[14%] text-center text-[10px]">{{ p.tinyName }}</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="record in currentPeriodData" :key="record.id" class="hover:bg-slate-50">
-              <td class="p-1 text-center border-r border-slate-50">
-                <div class="font-bold text-slate-800 text-[10px]">{{ getFormattedDate(record.date, true) }}</div>
-              </td>
-              <template v-for="p in products">
-                <td class="p-1 text-center border-r border-slate-50 align-middle">
-                  <div class="flex flex-col items-center justify-center text-[10px] font-black leading-tight">
-                    <span v-if="getHistoryQty(record, p.name).in" class="text-blue-600">+{{ getHistoryQty(record, p.name).in }}</span>
-                    <span v-if="getHistoryQty(record, p.name).ret" class="text-rose-500 mt-0.5">-{{ getHistoryQty(record, p.name).ret }}</span>
-                    <span v-if="!getHistoryQty(record, p.name).in && !getHistoryQty(record, p.name).ret" class="text-slate-200 font-normal">-</span>
-                  </div>
-                </td>
-              </template>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </div>
 
     <div v-if="deviceMode === 'desktop'" class="space-y-6">
       
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto p-4">
          <div class="flex justify-between items-center mb-3">
-            <h3 class="font-bold text-slate-800 text-sm">💰 門市結算對帳表 <span class="text-slate-400 font-normal ml-2">({{ periods[selectedPeriodIndex]?.label }})</span></h3>
-            <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded">實地盤存制：銷售 = 上期 + 進貨 - 本期存貨</span>
+            <h3 class="font-bold text-slate-800 text-sm">💰 門市結算對帳表 <span class="text-slate-400 font-normal ml-2">({{ activePeriod.label }})</span></h3>
          </div>
          <table class="w-full text-xs sheet-table whitespace-nowrap">
             <thead>
                <tr>
-                 <th class="text-left w-1/4">名稱</th>
+                 <th class="text-left w-[180px]">品名</th>
                  <th>上期庫存</th>
-                 <th>至12號進貨</th>
-                 <th>本期存貨數量</th>
+                 <th>期間進貨</th>
+                 <th>本期存貨</th>
                  <th class="bg-green-50 text-green-700">銷售</th>
-                 <th>成本</th>
+                 <th>批發價</th>
                  <th class="bg-blue-50 text-blue-700">成本合計</th>
                </tr>
             </thead>
             <tbody>
                <tr v-for="stat in desktopSummaryStats" :key="stat.name" class="hover:bg-slate-50 transition-colors">
                  <td class="text-left font-bold text-slate-700">{{ stat.shortName }}</td>
-                 <td>
-                   <input type="number" v-model.number="periodInv[stat.name].initial" @change="savePeriodInv" class="sheet-input" placeholder="0">
-                 </td>
+                 <td><input type="number" v-model.number="periodInv[stat.name].initial" @change="savePeriodInv" class="sheet-input" placeholder="0"></td>
                  <td class="font-bold text-blue-600">{{ stat.in }}</td>
-                 <td>
-                   <input type="number" v-model.number="periodInv[stat.name].final" @change="savePeriodInv" class="sheet-input" placeholder="0">
-                 </td>
+                 <td><input type="number" v-model.number="periodInv[stat.name].final" @change="savePeriodInv" class="sheet-input" placeholder="0"></td>
                  <td class="font-black text-green-600 text-sm bg-green-50/30">{{ stat.sales }}</td>
                  <td class="text-slate-500">${{ stat.cost }}</td>
                  <td class="font-black text-blue-700 text-sm bg-blue-50/30">${{ stat.totalCost.toLocaleString() }}</td>
                </tr>
                <tr class="bg-slate-50 font-black">
-                 <td colspan="6" class="text-right text-slate-500">總計應請款金額：</td>
+                 <td colspan="6" class="text-right text-slate-500">總計應結算金額：</td>
                  <td class="text-red-600 text-base">${{ desktopTotalCost.toLocaleString() }}</td>
                </tr>
             </tbody>
          </table>
       </div>
 
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto p-4">
-         <h3 class="font-bold text-slate-800 text-sm mb-3">📅 每日進退貨與累計明細表</h3>
-         <table class="w-full text-[10px] sheet-table whitespace-nowrap">
-            <thead>
-               <tr>
-                 <th rowspan="2" class="min-w-[80px]">日期</th>
-                 <th :colspan="products.length" class="bg-blue-50">當日進貨量</th>
-                 <th :colspan="products.length" class="bg-indigo-50">累積進貨量 (至當日)</th>
-                 <th :colspan="products.length" class="bg-rose-50">當日退回量</th>
-               </tr>
-               <tr>
-                 <template v-for="n in 3">
-                    <th v-for="p in products" :key="p.name + n" class="font-normal text-slate-600">{{ p.tinyName }}</th>
-                 </template>
-               </tr>
-            </thead>
-            <tbody>
-               <tr v-for="row in desktopDailyMatrix" :key="row.date" class="hover:bg-slate-50">
-                 <td class="font-bold text-slate-700">{{ getFormattedDate(row.date) }}</td>
-                 <td v-for="p in products" :key="'in'+p.name" :class="row.data[p.name].in > 0 ? 'text-blue-600 font-bold' : 'text-slate-300'">
-                   {{ row.data[p.name].in || '-' }}
-                 </td>
-                 <td v-for="p in products" :key="'cum'+p.name" class="font-bold text-indigo-700 bg-indigo-50/10 border-indigo-100">
-                   {{ row.data[p.name].cumulativeIn || '-' }}
-                 </td>
-                 <td v-for="p in products" :key="'ret'+p.name" :class="row.data[p.name].ret > 0 ? 'text-rose-600 font-bold' : 'text-slate-300'">
-                   {{ row.data[p.name].ret || '-' }}
-                 </td>
-               </tr>
-            </tbody>
-         </table>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+         <div class="p-3 bg-slate-50 border-b border-slate-200">
+            <h3 class="font-bold text-slate-800 text-sm">📅 每日進退與淨庫存累計表 (向右捲動 👉)</h3>
+         </div>
+         <div class="overflow-x-auto w-full">
+           <table class="text-[10px] sheet-table whitespace-nowrap w-full">
+              <thead>
+                 <tr>
+                   <th class="sticky-col-1 sticky-header">品名</th>
+                   <th class="sticky-col-2 sticky-header">項目</th>
+                   <th v-for="d in matrixDates" :key="d.full" class="min-w-[45px]">{{ d.short }}</th>
+                   <th class="bg-slate-200 min-w-[60px]">總計</th>
+                 </tr>
+              </thead>
+              <tbody v-for="p in desktopMatrixData" :key="p.name" class="border-b-2 border-slate-300">
+                 <tr>
+                   <td rowspan="3" class="sticky-col-1 bg-white font-bold text-slate-700 text-xs">{{ p.tinyName }}</td>
+                   <td class="sticky-col-2 bg-white text-blue-600 font-bold">進 (+)</td>
+                   <td v-for="d in p.daily" :key="'in'+d.date" :class="d.in > 0 ? 'text-blue-600 font-bold bg-blue-50/20' : 'text-slate-300'">
+                     {{ d.in || '' }}
+                   </td>
+                   <td class="font-black text-blue-600 bg-slate-100">{{ p.totalIn }}</td>
+                 </tr>
+                 <tr>
+                   <td class="sticky-col-2 bg-white text-rose-500 font-bold">退 (-)</td>
+                   <td v-for="d in p.daily" :key="'ret'+d.date" :class="d.ret > 0 ? 'text-rose-500 font-bold bg-rose-50/20' : 'text-slate-300'">
+                     {{ d.ret || '' }}
+                   </td>
+                   <td class="font-black text-rose-500 bg-slate-100">{{ p.totalRet }}</td>
+                 </tr>
+                 <tr>
+                   <td class="sticky-col-2 bg-slate-50 text-indigo-700 font-bold">淨累計</td>
+                   <td v-for="d in p.daily" :key="'net'+d.date" class="bg-slate-50 text-indigo-700 font-bold">
+                     {{ d.cumNet }}
+                   </td>
+                   <td class="font-black text-indigo-800 bg-indigo-100">{{ p.finalNet }}</td>
+                 </tr>
+              </tbody>
+           </table>
+         </div>
       </div>
-
     </div>
   </main>
 
@@ -258,7 +259,7 @@
         <thead class="bg-slate-50 text-slate-500 font-bold">
           <tr>
             <th class="p-3">品名</th>
-            <th class="p-3 text-center">今日已配送</th>
+            <th class="p-3 text-center">今日已派送</th>
             <th class="p-3 text-center w-24">廠內現存</th>
           </tr>
         </thead>
@@ -278,14 +279,14 @@
     </button>
   </main>
 
-  <nav class="fixed bottom-0 w-full max-w-md md:max-w-4xl bg-white/90 backdrop-blur-xl border-t border-slate-100 h-[72px] px-2 flex justify-between items-center z-50">
-    <button @click="currentTab = 'entry'" :class="currentTab === 'entry' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/4 h-full">
-      <span class="text-xl mb-0.5">✍️</span><span class="text-[9px] font-bold">填寫</span>
+  <nav class="fixed bottom-0 w-full max-w-md md:max-w-5xl bg-white/90 backdrop-blur-xl border-t border-slate-100 h-[72px] px-2 flex justify-between items-center z-50">
+    <button @click="currentTab = 'entry'" :class="currentTab === 'entry' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/3 h-full">
+      <span class="text-xl mb-0.5">✍️</span><span class="text-[9px] font-bold">每日登錄</span>
     </button>
-    <button @click="currentTab = 'history'" :class="currentTab === 'history' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/4 h-full">
-      <span class="text-xl mb-0.5">📜</span><span class="text-[9px] font-bold">結算與紀錄</span>
+    <button @click="currentTab = 'history'" :class="currentTab === 'history' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/3 h-full">
+      <span class="text-xl mb-0.5">📜</span><span class="text-[9px] font-bold">結算與調閱</span>
     </button>
-    <button @click="currentTab = 'stock'" :class="currentTab === 'stock' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/4 h-full">
+    <button @click="currentTab = 'stock'" :class="currentTab === 'stock' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center justify-center w-1/3 h-full">
       <span class="text-xl mb-0.5">📦</span><span class="text-[9px] font-bold">廠內庫存</span>
     </button>
   </nav>
@@ -313,21 +314,26 @@
   createApp({
     setup() {
       const currentTab = vueRef('history');
-      const deviceMode = vueRef('mobile'); // 'mobile' | 'desktop'
+      const deviceMode = vueRef('desktop'); 
       const historyView = vueRef('list'); 
       const loading = vueRef(false);
       const history = vueRef([]);
       const errorMessage = vueRef('');
-      const periodInv = vueRef({}); // 儲存電腦版的 上期庫存與本期存貨
+      const periodInv = vueRef({}); 
       
+      // 自訂區間控制
+      const useCustomPeriod = vueRef(false);
+      const customStart = vueRef(new Date().toISOString().split('T')[0]);
+      const customEnd = vueRef(new Date().toISOString().split('T')[0]);
+
       const locations = ['碧萃茶飲店', '火燒農會', '主辦公室', '其他留存'];
       
       const defaultProducts = [
-        { name: '五寮尖羊奶(大)950cc', shortName: '大羊奶950cc', tinyName: '大奶', cost: 128, price: 150 },
-        { name: '五寮尖羊奶(小)500cc', shortName: '小羊奶500cc', tinyName: '小奶', cost: 85, price: 100 },
-        { name: '羊奶小饅頭 (8入-黑糖)', shortName: '黑糖小饅頭', tinyName: '黑糖', cost: 85, price: 100 },
-        { name: '羊奶小饅頭 (8入-原味)', shortName: '原味小饅頭', tinyName: '原味', cost: 85, price: 100 },
-        { name: '桂圓核桃黑糖羊奶饅頭 (4入)', shortName: '桂圓核桃饅頭', tinyName: '桂圓', cost: 128, price: 150 }
+        { name: '五寮尖羊奶(大)950cc', shortName: '大羊奶950cc', tinyName: '大奶', cost: 128 },
+        { name: '五寮尖羊奶(小)500cc', shortName: '小羊奶500cc', tinyName: '小奶', cost: 85 },
+        { name: '羊奶小饅頭 (8入-黑糖)', shortName: '黑糖小饅頭', tinyName: '黑糖', cost: 85 },
+        { name: '羊奶小饅頭 (8入-原味)', shortName: '原味小饅頭', tinyName: '原味', cost: 85 },
+        { name: '桂圓核桃黑糖羊奶饅頭 (4入)', shortName: '桂圓核桃饅頭', tinyName: '桂圓', cost: 128 }
       ];
 
       const products = vueRef(JSON.parse(JSON.stringify(defaultProducts)));
@@ -344,7 +350,6 @@
         items: products.value.map(p => ({ name: p.name, inQty: '', retQty: '' }))
       });
 
-      // --- 時間與名稱格式化 ---
       const formatDateTime = (ts) => {
          if(!ts) return '未記錄';
          const d = new Date(ts);
@@ -369,12 +374,14 @@
         return { in: item?.inQty || '', ret: item?.retQty || '' };
       };
 
-      // --- 帳期邏輯 (精確顯示 3/13~4/12 格式) ---
+      // --- 修正後的帳期生成邏輯 ---
       const periods = vueRef((() => {
         const list = [];
         let d = new Date(), y = d.getFullYear(), m = d.getMonth() + 1;
-        if (d.getDate() <= 12) m -= 1;
-        if (m === 0) { m = 12; y -= 1; }
+        // 如果今天大於 12 號，代表當前帳期結束月份是「下個月」
+        if (d.getDate() > 12) m += 1;
+        if (m > 12) { m = 1; y += 1; }
+        
         for(let i=0; i<6; i++) {
           let pm = m - 1, py = y;
           if (pm === 0) { pm = 12; py -= 1; }
@@ -389,39 +396,44 @@
       })());
       
       const selectedPeriodIndex = vueRef(0);
+
+      // 動態判定當前活躍的期間 (預設或自訂)
+      const activePeriod = computed(() => {
+        if(useCustomPeriod.value) {
+            return { label: `自訂 (${customStart.value.substring(5)} ~ ${customEnd.value.substring(5)})`, start: customStart.value, end: customEnd.value };
+        }
+        return periods.value[selectedPeriodIndex.value];
+      });
+
       const currentPeriodData = computed(() => {
-        const p = periods.value[selectedPeriodIndex.value];
+        const p = activePeriod.value;
+        if(!p || !p.start || !p.end) return [];
         return history.value.filter(r => r.date >= p.start && r.date <= p.end).sort((a,b) => a.date.localeCompare(b.date));
       });
 
-      // --- 電腦版：會計結算表邏輯 ---
+      // --- 結算表邏輯 ---
       const loadPeriodInv = () => {
-        const p = periods.value[selectedPeriodIndex.value];
+        const p = activePeriod.value;
         if(!p) return;
         onValue(ref(db, `period_inv/${p.start}`), snap => {
           const data = snap.exists() ? snap.val() : {};
-          // 初始化確保每個產品都有 default {initial: 0, final: 0}
           const safeData = {};
-          products.value.forEach(prod => {
-             safeData[prod.name] = data[prod.name] || { initial: 0, final: 0 };
-          });
+          products.value.forEach(prod => { safeData[prod.name] = data[prod.name] || { initial: 0, final: 0 }; });
           periodInv.value = safeData;
         }, { onlyOnce: true });
       };
 
-      watch(selectedPeriodIndex, loadPeriodInv);
+      watch(activePeriod, loadPeriodInv);
       watch(deviceMode, (val) => { if(val === 'desktop') loadPeriodInv(); });
 
       const savePeriodInv = () => {
-        const p = periods.value[selectedPeriodIndex.value];
+        const p = activePeriod.value;
         set(ref(db, `period_inv/${p.start}`), periodInv.value);
       };
 
-      // 實地盤存制：銷售 = 上期 + 本期進貨 - 本期存貨
       const desktopSummaryStats = computed(() => {
         const map = {};
         products.value.forEach(p => map[p.name] = { in: 0 });
-
         currentPeriodData.value.forEach(record => {
           record.items.forEach(item => {
             const nName = getNormalizedName(item.name);
@@ -432,82 +444,85 @@
         return products.value.map(p => {
           const inv = periodInv.value[p.name] || { initial: 0, final: 0 };
           const totalIn = map[p.name].in;
-          // 核心公式！
           const sales = (inv.initial || 0) + totalIn - (inv.final || 0);
-          return {
-            name: p.name,
-            shortName: p.shortName,
-            in: totalIn,
-            sales: sales,
-            cost: p.cost,
-            totalCost: sales * p.cost
-          };
+          return { name: p.name, shortName: p.shortName, in: totalIn, sales: sales, cost: p.cost, totalCost: sales * p.cost };
         });
       });
 
       const desktopTotalCost = computed(() => desktopSummaryStats.value.reduce((s, st) => s + st.totalCost, 0));
 
-      // --- 電腦版：每日矩陣表邏輯 ---
+      // --- 全新：矩陣翻轉邏輯 ---
       const getDatesInRange = (start, end) => {
         const arr = [];
         let dt = new Date(start);
         const endDt = new Date(end);
-        while(dt <= endDt) {
+        // 如果自訂區間太長，限制最多顯示 40 天防當機
+        let safeCounter = 0;
+        while(dt <= endDt && safeCounter < 40) {
           arr.push(dt.toISOString().split('T')[0]);
           dt.setDate(dt.getDate() + 1);
+          safeCounter++;
         }
         return arr;
       };
 
-      const desktopDailyMatrix = computed(() => {
-        const p = periods.value[selectedPeriodIndex.value];
-        const dates = getDatesInRange(p.start, p.end);
-        const matrix = [];
-        const runningTotals = {};
-        products.value.forEach(prod => runningTotals[prod.name] = 0);
+      const matrixDates = computed(() => {
+         const p = activePeriod.value;
+         if(!p.start) return [];
+         const dates = getDatesInRange(p.start, p.end);
+         const today = new Date().toISOString().split('T')[0];
+         // 過濾掉還沒發生的未來日期，讓表格不要拉太長
+         return dates.filter(d => d <= today).map(d => ({
+             full: d,
+             short: `${d.substring(5,7)}/${d.substring(8,10)}`
+         }));
+      });
 
-        // 將該期的資料按日期 Group
+      const desktopMatrixData = computed(() => {
+        const dates = matrixDates.value.map(d => d.full);
+        
         const recordsByDate = {};
         currentPeriodData.value.forEach(r => {
            if(!recordsByDate[r.date]) recordsByDate[r.date] = [];
            recordsByDate[r.date].push(r);
         });
 
-        dates.forEach(date => {
-           const row = { date, data: {} };
-           const dailyRecords = recordsByDate[date] || [];
-           
-           products.value.forEach(prod => {
-              let dailyIn = 0, dailyRet = 0;
-              dailyRecords.forEach(r => {
-                 const item = r.items.find(i => getNormalizedName(i.name) === getNormalizedName(prod.name));
-                 if(item) {
-                    dailyIn += (Number(item.inQty) || 0);
-                    dailyRet += (Number(item.retQty) || 0);
-                 }
-              });
-              runningTotals[prod.name] += dailyIn;
-              row.data[prod.name] = {
-                 in: dailyIn,
-                 ret: dailyRet,
-                 cumulativeIn: runningTotals[prod.name]
-              };
-           });
-           // 只顯示有異動 或 今天以前的日期 (避免未來日期佔滿畫面)
-           const today = new Date().toISOString().split('T')[0];
-           const hasActivity = products.value.some(prod => row.data[prod.name].in > 0 || row.data[prod.name].ret > 0);
-           if(hasActivity || date <= today) {
-               matrix.push(row);
-           }
+        return products.value.map(prod => {
+            let cumulativeNet = 0;
+            let totalIn = 0;
+            let totalRet = 0;
+
+            const dailyData = dates.map(date => {
+                let dailyIn = 0, dailyRet = 0;
+                const records = recordsByDate[date] || [];
+                records.forEach(r => {
+                   const item = r.items.find(i => getNormalizedName(i.name) === getNormalizedName(prod.name));
+                   if(item) {
+                       dailyIn += (Number(item.inQty) || 0);
+                       dailyRet += (Number(item.retQty) || 0);
+                   }
+                });
+                totalIn += dailyIn;
+                totalRet += dailyRet;
+                cumulativeNet += (dailyIn - dailyRet);
+                
+                return { date, in: dailyIn, ret: dailyRet, cumNet: cumulativeNet };
+            });
+
+            return {
+                name: prod.name,
+                tinyName: prod.tinyName,
+                daily: dailyData,
+                totalIn,
+                totalRet,
+                finalNet: cumulativeNet
+            };
         });
-        // 倒序顯示，新日期在上面
-        return matrix.reverse();
       });
 
       // --- 手機編輯功能 ---
       const editingId = vueRef(null);
       const editData = vueRef({});
-
       const startEdit = (record) => {
         editingId.value = record.id;
         editData.value = JSON.parse(JSON.stringify(record));
@@ -521,27 +536,54 @@
       const saveEdit = async () => {
         loading.value = true;
         try {
-          await update(ref(db, 'delivery_slips/' + editingId.value), {
-             date: editData.value.date, location: editData.value.location, items: editData.value.items
-          });
+          await update(ref(db, 'delivery_slips/' + editingId.value), { date: editData.value.date, location: editData.value.location, items: editData.value.items });
           editingId.value = null;
-        } catch(e) { alert('更新失敗'); }
+        } catch(e) {}
         loading.value = false;
       };
 
-      // --- 資料庫載入與儲存 ---
+      watch([history, products, currentTab], () => {
+         if(currentTab.value === 'stock') {
+             const today = new Date().toISOString().split('T')[0];
+             const todayRecords = history.value.filter(r => r.date === today);
+             const deliveredMap = {};
+             products.value.forEach(p => deliveredMap[p.name] = 0);
+             
+             todayRecords.forEach(r => {
+                 r.items.forEach(item => {
+                     const nName = getNormalizedName(item.name);
+                     if(deliveredMap[nName] !== undefined) deliveredMap[nName] += (Number(item.inQty) || 0);
+                 });
+             });
+             
+             currentStock.value = products.value.map(p => {
+                 const existing = currentStock.value.find(s => s.name === p.name);
+                 return { name: p.name, tinyName: p.tinyName, todayDelivered: deliveredMap[p.name], qty: existing ? existing.qty : '' };
+             });
+         }
+      });
+
       onMounted(() => {
         loading.value = true;
+        onValue(ref(db, 'settings/products'), (snap) => {
+          if (snap.exists()) {
+            products.value = snap.val();
+            if(!slipForm.value.items[0].name) slipForm.value.items = products.value.map(p => ({ name: p.name, inQty: '', retQty: '' }));
+          }
+        });
+        onValue(ref(db, 'inventory/current'), (snap) => {
+          if (snap.exists()) {
+             const savedStock = snap.val();
+             currentStock.value.forEach(s => { if(savedStock[s.tinyName]) s.qty = savedStock[s.tinyName]; });
+          }
+        });
         onValue(ref(db, 'delivery_slips'), (snap) => {
           errorMessage.value = '';
           const data = snap.val();
-          if (data) {
-            history.value = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-          }
+          if (data) { history.value = Object.keys(data).map(key => ({ id: key, ...data[key] })); }
           loading.value = false;
-          // 初始化載入當期庫存設定
           if(deviceMode.value === 'desktop') loadPeriodInv();
-        }, (error) => { errorMessage.value = '連線異常：' + error.message; loading.value = false; });
+        });
       });
 
       const submitSlip = async () => {
@@ -554,12 +596,23 @@
         } catch (e) {} finally { loading.value = false; }
       };
 
+      const saveStock = async () => {
+        loading.value = true;
+        const payload = {};
+        let hasData = false;
+        currentStock.value.forEach(s => { if(s.qty !== '' && s.qty !== null) { payload[s.tinyName] = s.qty; hasData = true; } });
+        if(!hasData) { alert('請輸入盤點數量'); loading.value = false; return; }
+        try { await set(ref(db, 'inventory/current'), payload); alert('盤點紀錄已儲存'); } 
+        catch (e) {} finally { loading.value = false; }
+      };
+
       return {
         currentTab, deviceMode, historyView, pageTitle, loading, errorMessage, locations, slipForm, history,
-        periods, selectedPeriodIndex, currentPeriodData, products,
-        desktopSummaryStats, desktopTotalCost, periodInv, savePeriodInv, desktopDailyMatrix,
+        periods, selectedPeriodIndex, currentPeriodData, products, useCustomPeriod, customStart, customEnd, activePeriod,
+        desktopSummaryStats, desktopTotalCost, periodInv, savePeriodInv, 
+        matrixDates, desktopMatrixData,
         editingId, editData, startEdit, saveEdit, cancelEdit, currentStock, 
-        formatDateTime, getFormattedDate, getHistoryQty, submitSlip
+        formatDateTime, getFormattedDate, getHistoryQty, submitSlip, saveStock
       };
     }
   }).mount('#app');
