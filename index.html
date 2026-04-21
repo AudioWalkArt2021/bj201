@@ -20,7 +20,7 @@
     .sheet-input { width: 60px; text-align: center; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 4px; padding: 4px; font-weight: bold; }
     .sheet-input:focus { outline: none; border-color: #3B82F6; background: #EFF6FF; }
     
-    /* 凍結首兩欄 (橫向捲動時固定商品名稱與項目) */
+    /* 凍結首兩欄 */
     .sticky-col-1 { position: sticky; left: 0; z-index: 20; background-color: white; border-right: 1px solid #E2E8F0; width: 90px; min-width: 90px; }
     .sticky-col-2 { position: sticky; left: 90px; z-index: 20; background-color: white; border-right: 2px solid #94A3B8; width: 60px; min-width: 60px;}
     .sticky-header { z-index: 30 !important; background-color: #F1F5F9; }
@@ -33,7 +33,7 @@
   <header class="bg-white/90 backdrop-blur-md sticky top-0 z-50 px-5 py-4 border-b border-slate-100 flex justify-between items-center">
     <div>
       <h1 class="text-lg font-bold text-slate-900">{{ pageTitle }}</h1>
-      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian CRM v7.10 (專業會計版)</p>
+      <p class="text-[10px] text-slate-400 font-medium">Wuliaojian CRM v7.11 (修復版)</p>
     </div>
     <div v-if="loading" class="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
   </header>
@@ -168,6 +168,33 @@
           </div>
         </div>
       </div>
+
+      <div v-if="historyView === 'table'" class="bento-card bg-white p-2">
+        <table class="w-full text-left text-xs table-fixed">
+          <thead class="bg-slate-800 text-white font-bold rounded-t-xl overflow-hidden">
+            <tr>
+              <th class="p-2 w-[28%] text-[10px] text-center rounded-tl-xl">日期</th>
+              <th v-for="p in products" :key="p.name" class="p-1 w-[14%] text-center text-[10px]">{{ p.tinyName }}</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="record in currentPeriodData" :key="record.id" class="hover:bg-slate-50">
+              <td class="p-1 text-center border-r border-slate-50">
+                <div class="font-bold text-slate-800 text-[10px]">{{ getFormattedDate(record.date, true) }}</div>
+              </td>
+              <template v-for="p in products">
+                <td class="p-1 text-center border-r border-slate-50 align-middle">
+                  <div class="flex flex-col items-center justify-center text-[10px] font-black leading-tight">
+                    <span v-if="getHistoryQty(record, p.name).in" class="text-blue-600">+{{ getHistoryQty(record, p.name).in }}</span>
+                    <span v-if="getHistoryQty(record, p.name).ret" class="text-rose-500 mt-0.5">-{{ getHistoryQty(record, p.name).ret }}</span>
+                    <span v-if="!getHistoryQty(record, p.name).in && !getHistoryQty(record, p.name).ret" class="text-slate-200 font-normal">-</span>
+                  </div>
+                </td>
+              </template>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div v-if="deviceMode === 'desktop'" class="space-y-6">
@@ -191,9 +218,13 @@
             <tbody>
                <tr v-for="stat in desktopSummaryStats" :key="stat.name" class="hover:bg-slate-50 transition-colors">
                  <td class="text-left font-bold text-slate-700">{{ stat.shortName }}</td>
-                 <td><input type="number" v-model.number="periodInv[stat.name].initial" @change="savePeriodInv" class="sheet-input" placeholder="0"></td>
+                 <td>
+                   <input type="number" v-model.number="periodInv[stat.name].initial" @change="savePeriodInv" class="sheet-input" placeholder="0">
+                 </td>
                  <td class="font-bold text-blue-600">{{ stat.in }}</td>
-                 <td><input type="number" v-model.number="periodInv[stat.name].final" @change="savePeriodInv" class="sheet-input" placeholder="0"></td>
+                 <td>
+                   <input type="number" v-model.number="periodInv[stat.name].final" @change="savePeriodInv" class="sheet-input" placeholder="0">
+                 </td>
                  <td class="font-black text-green-600 text-sm bg-green-50/30">{{ stat.sales }}</td>
                  <td class="text-slate-500">${{ stat.cost }}</td>
                  <td class="font-black text-blue-700 text-sm bg-blue-50/30">${{ stat.totalCost.toLocaleString() }}</td>
@@ -319,13 +350,7 @@
       const loading = vueRef(false);
       const history = vueRef([]);
       const errorMessage = vueRef('');
-      const periodInv = vueRef({}); 
       
-      // 自訂區間控制
-      const useCustomPeriod = vueRef(false);
-      const customStart = vueRef(new Date().toISOString().split('T')[0]);
-      const customEnd = vueRef(new Date().toISOString().split('T')[0]);
-
       const locations = ['碧萃茶飲店', '火燒農會', '主辦公室', '其他留存'];
       
       const defaultProducts = [
@@ -339,6 +364,27 @@
       const products = vueRef(JSON.parse(JSON.stringify(defaultProducts)));
       const currentStock = vueRef([]); 
 
+      // 核心修復：在一開始就幫 periodInv 把所有商品欄位初始化，避免 undefined 當機
+      const initPeriodInv = () => {
+        const obj = {};
+        defaultProducts.forEach(p => { obj[p.name] = { initial: 0, final: 0 }; });
+        return obj;
+      };
+      const periodInv = vueRef(initPeriodInv()); 
+
+      // 監聽商品變化，若有新商品確保欄位不為空
+      watch(products, (newProducts) => {
+        const currentInv = periodInv.value;
+        let changed = false;
+        newProducts.forEach(p => {
+            if (!currentInv[p.name]) {
+                currentInv[p.name] = { initial: 0, final: 0 };
+                changed = true;
+            }
+        });
+        if(changed) periodInv.value = { ...currentInv };
+      }, { deep: true, immediate: true });
+
       const pageTitle = computed(() => {
         const titles = { entry: '出貨作業', history: '會計結算與紀錄', stock: '廠內庫存盤點' };
         return titles[currentTab.value];
@@ -349,12 +395,6 @@
         location: '碧萃茶飲店',
         items: products.value.map(p => ({ name: p.name, inQty: '', retQty: '' }))
       });
-
-      const formatDateTime = (ts) => {
-         if(!ts) return '未記錄';
-         const d = new Date(ts);
-         return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-      };
 
       const getFormattedDate = (dateStr, short = false) => {
         const d = new Date(dateStr);
@@ -374,11 +414,14 @@
         return { in: item?.inQty || '', ret: item?.retQty || '' };
       };
 
-      // --- 修正後的帳期生成邏輯 ---
+      // 帳期邏輯
+      const useCustomPeriod = vueRef(false);
+      const customStart = vueRef(new Date().toISOString().split('T')[0]);
+      const customEnd = vueRef(new Date().toISOString().split('T')[0]);
+
       const periods = vueRef((() => {
         const list = [];
         let d = new Date(), y = d.getFullYear(), m = d.getMonth() + 1;
-        // 如果今天大於 12 號，代表當前帳期結束月份是「下個月」
         if (d.getDate() > 12) m += 1;
         if (m > 12) { m = 1; y += 1; }
         
@@ -396,8 +439,6 @@
       })());
       
       const selectedPeriodIndex = vueRef(0);
-
-      // 動態判定當前活躍的期間 (預設或自訂)
       const activePeriod = computed(() => {
         if(useCustomPeriod.value) {
             return { label: `自訂 (${customStart.value.substring(5)} ~ ${customEnd.value.substring(5)})`, start: customStart.value, end: customEnd.value };
@@ -411,14 +452,16 @@
         return history.value.filter(r => r.date >= p.start && r.date <= p.end).sort((a,b) => a.date.localeCompare(b.date));
       });
 
-      // --- 結算表邏輯 ---
+      // 結算表邏輯
       const loadPeriodInv = () => {
         const p = activePeriod.value;
         if(!p) return;
         onValue(ref(db, `period_inv/${p.start}`), snap => {
           const data = snap.exists() ? snap.val() : {};
-          const safeData = {};
-          products.value.forEach(prod => { safeData[prod.name] = data[prod.name] || { initial: 0, final: 0 }; });
+          const safeData = initPeriodInv();
+          products.value.forEach(prod => {
+             safeData[prod.name] = data[prod.name] || { initial: 0, final: 0 };
+          });
           periodInv.value = safeData;
         }, { onlyOnce: true });
       };
@@ -451,12 +494,11 @@
 
       const desktopTotalCost = computed(() => desktopSummaryStats.value.reduce((s, st) => s + st.totalCost, 0));
 
-      // --- 全新：矩陣翻轉邏輯 ---
+      // 每日矩陣邏輯
       const getDatesInRange = (start, end) => {
         const arr = [];
         let dt = new Date(start);
         const endDt = new Date(end);
-        // 如果自訂區間太長，限制最多顯示 40 天防當機
         let safeCounter = 0;
         while(dt <= endDt && safeCounter < 40) {
           arr.push(dt.toISOString().split('T')[0]);
@@ -471,16 +513,11 @@
          if(!p.start) return [];
          const dates = getDatesInRange(p.start, p.end);
          const today = new Date().toISOString().split('T')[0];
-         // 過濾掉還沒發生的未來日期，讓表格不要拉太長
-         return dates.filter(d => d <= today).map(d => ({
-             full: d,
-             short: `${d.substring(5,7)}/${d.substring(8,10)}`
-         }));
+         return dates.filter(d => d <= today).map(d => ({ full: d, short: `${d.substring(5,7)}/${d.substring(8,10)}` }));
       });
 
       const desktopMatrixData = computed(() => {
         const dates = matrixDates.value.map(d => d.full);
-        
         const recordsByDate = {};
         currentPeriodData.value.forEach(r => {
            if(!recordsByDate[r.date]) recordsByDate[r.date] = [];
@@ -509,18 +546,11 @@
                 return { date, in: dailyIn, ret: dailyRet, cumNet: cumulativeNet };
             });
 
-            return {
-                name: prod.name,
-                tinyName: prod.tinyName,
-                daily: dailyData,
-                totalIn,
-                totalRet,
-                finalNet: cumulativeNet
-            };
+            return { name: prod.name, tinyName: prod.tinyName, daily: dailyData, totalIn, totalRet, finalNet: cumulativeNet };
         });
       });
 
-      // --- 手機編輯功能 ---
+      // 編輯邏輯
       const editingId = vueRef(null);
       const editData = vueRef({});
       const startEdit = (record) => {
@@ -542,20 +572,19 @@
         loading.value = false;
       };
 
+      // 盤點邏輯
       watch([history, products, currentTab], () => {
          if(currentTab.value === 'stock') {
              const today = new Date().toISOString().split('T')[0];
              const todayRecords = history.value.filter(r => r.date === today);
              const deliveredMap = {};
              products.value.forEach(p => deliveredMap[p.name] = 0);
-             
              todayRecords.forEach(r => {
                  r.items.forEach(item => {
                      const nName = getNormalizedName(item.name);
                      if(deliveredMap[nName] !== undefined) deliveredMap[nName] += (Number(item.inQty) || 0);
                  });
              });
-             
              currentStock.value = products.value.map(p => {
                  const existing = currentStock.value.find(s => s.name === p.name);
                  return { name: p.name, tinyName: p.tinyName, todayDelivered: deliveredMap[p.name], qty: existing ? existing.qty : '' };
@@ -612,7 +641,7 @@
         desktopSummaryStats, desktopTotalCost, periodInv, savePeriodInv, 
         matrixDates, desktopMatrixData,
         editingId, editData, startEdit, saveEdit, cancelEdit, currentStock, 
-        formatDateTime, getFormattedDate, getHistoryQty, submitSlip, saveStock
+        getFormattedDate, getHistoryQty, submitSlip, saveStock
       };
     }
   }).mount('#app');
